@@ -1,0 +1,40 @@
+package com.assetmanagement.asset_management.dto;
+
+import com.assetmanagement.asset_management.entity.AssetStatus;
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AssetResponse {
+
+    private Long id;
+
+    private String assetCode;
+
+    private String name;
+
+    private String serialNumber;
+
+    private BigDecimal value;
+
+    private LocalDate purchaseDate;
+
+    private AssetStatus status;
+
+    private Long categoryId;
+
+    private String categoryName;
+
+    private Long departmentId;
+
+    private String departmentName;
+
+    private Long assignedToId;
+
+    private String assignedToName;
+}

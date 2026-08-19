@@ -1,0 +1,46 @@
+package com.assetmanagement.asset_management.controller;
+
+import com.assetmanagement.asset_management.entity.AssetCategory;
+import com.assetmanagement.asset_management.service.AssetCategoryService;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/categories")
+public class AssetCategoryController {
+
+    private final AssetCategoryService assetCategoryService;
+
+    public AssetCategoryController(AssetCategoryService assetCategoryService) {
+        this.assetCategoryService = assetCategoryService;
+    }
+
+    @GetMapping
+    public List<AssetCategory> getAllCategories() {
+        return assetCategoryService.getAllCategories();
+    }
+
+    @GetMapping("/{id}")
+    public AssetCategory getCategoryById(@PathVariable Long id) {
+        return assetCategoryService.getCategoryById(id);
+    }
+
+    @PostMapping
+    public AssetCategory createCategory(@RequestBody AssetCategory category) {
+        return assetCategoryService.createCategory(category);
+    }
+
+    @PutMapping("/{id}")
+    public AssetCategory updateCategory(
+            @PathVariable Long id,
+            @RequestBody AssetCategory category) {
+
+        return assetCategoryService.updateCategory(id, category);
+    }
+
+    @DeleteMapping("/{id}")
+    public void deleteCategory(@PathVariable Long id) {
+        assetCategoryService.deleteCategory(id);
+    }
+}
