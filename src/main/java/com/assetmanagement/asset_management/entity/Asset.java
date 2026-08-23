@@ -1,5 +1,6 @@
 package com.assetmanagement.asset_management.entity;
 
+import com.assetmanagement.asset_management.enums.AssetStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

@@ -1,6 +1,6 @@
 package com.assetmanagement.asset_management.dto;
 
-import com.assetmanagement.asset_management.entity.AssetStatus;
+import com.assetmanagement.asset_management.enums.AssetStatus;
 import lombok.*;
 
 import java.math.BigDecimal;

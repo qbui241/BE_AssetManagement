@@ -1,4 +1,4 @@
-package com.assetmanagement.asset_management.entity;
+package com.assetmanagement.asset_management.enums;
 
 public enum AssetStatus {
     AVAILABLE,

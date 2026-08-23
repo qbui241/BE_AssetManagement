@@ -4,6 +4,7 @@ import com.assetmanagement.asset_management.dto.AssetAssignmentRequest;
 import com.assetmanagement.asset_management.dto.AssetRequest;
 import com.assetmanagement.asset_management.dto.AssetResponse;
 import com.assetmanagement.asset_management.entity.*;
+import com.assetmanagement.asset_management.enums.AssetStatus;
 import com.assetmanagement.asset_management.exception.InvalidStatusTransitionException;
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.*;
