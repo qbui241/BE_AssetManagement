@@ -5,7 +5,9 @@ import com.assetmanagement.asset_management.entity.*;
 import com.assetmanagement.asset_management.enums.ApprovalRequestStatus;
 import com.assetmanagement.asset_management.enums.AssetStatus;
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
-import com.assetmanagement.asset_management.repository.*;
+import com.assetmanagement.asset_management.repository.ApprovalRequestRepository;
+import com.assetmanagement.asset_management.repository.AssetRepository;
+import com.assetmanagement.asset_management.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,20 +19,17 @@ public class ApprovalRequestService {
     private final ApprovalRequestRepository approvalRequestRepository;
     private final AssetRepository assetRepository;
     private final UserRepository userRepository;
-    private final ApprovalWorkflowRepository approvalWorkflowRepository;
     private final WorkflowEngineService workflowEngineService;
 
     public ApprovalRequestService(
             ApprovalRequestRepository approvalRequestRepository,
             AssetRepository assetRepository,
             UserRepository userRepository,
-            ApprovalWorkflowRepository approvalWorkflowRepository,
             WorkflowEngineService workflowEngineService) {
 
         this.approvalRequestRepository = approvalRequestRepository;
         this.assetRepository = assetRepository;
         this.userRepository = userRepository;
-        this.approvalWorkflowRepository = approvalWorkflowRepository;
         this.workflowEngineService = workflowEngineService;
     }
 
@@ -40,22 +39,15 @@ public class ApprovalRequestService {
 
         Asset asset = assetRepository.findById(request.getAssetId())
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Asset not found"));
+                        new ResourceNotFoundException(
+                                "Asset not found"
+                        ));
 
         User requester = userRepository.findById(request.getRequesterId())
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("User not found"));
-
-        ApprovalWorkflow workflow = approvalWorkflowRepository
-                .findById(request.getWorkflowId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Workflow not found"));
-
-        if (!workflow.isActive()) {
-            throw new IllegalStateException(
-                    "Workflow is not active"
-            );
-        }
+                        new ResourceNotFoundException(
+                                "User not found"
+                        ));
 
         if (asset.getStatus() != AssetStatus.AVAILABLE) {
             throw new IllegalStateException(
@@ -63,27 +55,27 @@ public class ApprovalRequestService {
             );
         }
 
+        ApprovalWorkflow workflow =
+                workflowEngineService.findActiveWorkflow();
+
         ApprovalStep firstStep =
                 workflowEngineService.findFirstApplicableStep(
                         asset,
                         workflow
                 );
 
-        if (firstStep == null) {
-            throw new IllegalStateException(
-                    "No applicable approval step found"
-            );
-        }
+        ApprovalRequest approvalRequest =
+                ApprovalRequest.builder()
+                        .asset(asset)
+                        .requester(requester)
+                        .workflow(workflow)
+                        .currentStepOrder(firstStep.getStepOrder())
+                        .status(ApprovalRequestStatus.PENDING)
+                        .createdAt(LocalDateTime.now())
+                        .build();
 
-        ApprovalRequest approvalRequest = ApprovalRequest.builder()
-                .asset(asset)
-                .requester(requester)
-                .workflow(workflow)
-                .currentStepOrder(firstStep.getStepOrder())
-                .status(ApprovalRequestStatus.PENDING)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        return approvalRequestRepository.save(approvalRequest);
+        approvalRequest = approvalRequestRepository.save(approvalRequest);
+        workflowEngineService.createFirstTask(approvalRequest);
+        return approvalRequest;
     }
 }

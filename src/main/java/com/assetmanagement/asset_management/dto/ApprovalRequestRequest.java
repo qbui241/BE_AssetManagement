@@ -11,7 +11,5 @@ public class ApprovalRequestRequest {
 
     @NotNull(message = "requesterId is required")
     private Long requesterId;
-
-    @NotNull(message = "workflowId is required")
-    private Long workflowId;
+    
 }

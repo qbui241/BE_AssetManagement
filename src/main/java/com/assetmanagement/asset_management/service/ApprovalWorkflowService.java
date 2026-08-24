@@ -1,5 +1,7 @@
 package com.assetmanagement.asset_management.service;
 
+import com.assetmanagement.asset_management.dto.ApprovalWorkflowRequest;
+import com.assetmanagement.asset_management.dto.ApprovalWorkflowResponse;
 import com.assetmanagement.asset_management.entity.ApprovalWorkflow;
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.ApprovalWorkflowRepository;
@@ -17,36 +19,74 @@ public class ApprovalWorkflowService {
         this.approvalWorkflowRepository = approvalWorkflowRepository;
     }
 
-    public List<ApprovalWorkflow> getAllWorkflows() {
-        return approvalWorkflowRepository.findAll();
+    public List<ApprovalWorkflowResponse> getAllWorkflows() {
+
+        return approvalWorkflowRepository.findAll()
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
-    public ApprovalWorkflow getWorkflowById(Long id) {
-        return approvalWorkflowRepository.findById(id)
+    public ApprovalWorkflowResponse getWorkflowById(Long id) {
+
+        ApprovalWorkflow workflow = approvalWorkflowRepository.findById(id)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Workflow not found"));
+
+        return toResponse(workflow);
     }
 
-    public ApprovalWorkflow createWorkflow(ApprovalWorkflow workflow) {
-        return approvalWorkflowRepository.save(workflow);
+    public ApprovalWorkflowResponse createWorkflow(
+            ApprovalWorkflowRequest request) {
+
+        ApprovalWorkflow workflow = new ApprovalWorkflow();
+
+        workflow.setName(request.getName());
+        workflow.setDescription(request.getDescription());
+        workflow.setType(request.getType());
+        workflow.setActive(request.isActive());
+
+        workflow = approvalWorkflowRepository.save(workflow);
+
+        return toResponse(workflow);
     }
 
-    public ApprovalWorkflow updateWorkflow(
+    public ApprovalWorkflowResponse updateWorkflow(
             Long id,
-            ApprovalWorkflow payload) {
+            ApprovalWorkflowRequest request) {
 
-        ApprovalWorkflow workflow = getWorkflowById(id);
+        ApprovalWorkflow workflow = approvalWorkflowRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Workflow not found"));
 
-        workflow.setName(payload.getName());
-        workflow.setDescription(payload.getDescription());
-        workflow.setType(payload.getType());
-        workflow.setActive(payload.isActive());
+        workflow.setName(request.getName());
+        workflow.setDescription(request.getDescription());
+        workflow.setType(request.getType());
+        workflow.setActive(request.isActive());
 
-        return approvalWorkflowRepository.save(workflow);
+        workflow = approvalWorkflowRepository.save(workflow);
+
+        return toResponse(workflow);
     }
 
     public void deleteWorkflow(Long id) {
-        ApprovalWorkflow workflow = getWorkflowById(id);
+
+        ApprovalWorkflow workflow = approvalWorkflowRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Workflow not found"));
+
         approvalWorkflowRepository.delete(workflow);
+    }
+
+    private ApprovalWorkflowResponse toResponse(
+            ApprovalWorkflow workflow) {
+
+        return ApprovalWorkflowResponse.builder()
+                .id(workflow.getId())
+                .name(workflow.getName())
+                .description(workflow.getDescription())
+                .type(workflow.getType())
+                .active(workflow.isActive())
+                .build();
     }
 }
