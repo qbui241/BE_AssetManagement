@@ -3,6 +3,7 @@ package com.assetmanagement.asset_management.controller;
 import com.assetmanagement.asset_management.dto.UserRequest;
 import com.assetmanagement.asset_management.entity.User;
 import com.assetmanagement.asset_management.service.UserService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -43,5 +44,15 @@ public class UserController {
     @DeleteMapping("/{id}")
     public void deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
+    }
+
+    @PostMapping("/{userId}/roles/{roleId}")
+    public ResponseEntity<User> assignRole(
+            @PathVariable Long userId,
+            @PathVariable Long roleId) {
+
+        return ResponseEntity.ok(
+                userService.assignRole(userId, roleId)
+        );
     }
 }

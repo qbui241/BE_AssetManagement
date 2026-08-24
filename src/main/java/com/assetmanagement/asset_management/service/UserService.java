@@ -2,10 +2,12 @@ package com.assetmanagement.asset_management.service;
 
 import com.assetmanagement.asset_management.dto.UserRequest;
 import com.assetmanagement.asset_management.entity.Department;
+import com.assetmanagement.asset_management.entity.Role;
 import com.assetmanagement.asset_management.entity.User;
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.AssetHistoryRepository;
 import com.assetmanagement.asset_management.repository.DepartmentRepository;
+import com.assetmanagement.asset_management.repository.RoleRepository;
 import com.assetmanagement.asset_management.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
@@ -17,15 +19,18 @@ public class UserService {
     private final UserRepository userRepository;
     private final AssetHistoryRepository assetHistoryRepository;
     private final DepartmentRepository departmentRepository;
+    private final RoleRepository roleRepository;
 
     public UserService(
             UserRepository userRepository,
             AssetHistoryRepository assetHistoryRepository,
-            DepartmentRepository departmentRepository) {
+            DepartmentRepository departmentRepository,
+            RoleRepository roleRepository) {
 
         this.userRepository = userRepository;
         this.assetHistoryRepository = assetHistoryRepository;
         this.departmentRepository = departmentRepository;
+        this.roleRepository = roleRepository;
     }
 
     public List<User> getAllUsers() {
@@ -81,5 +86,20 @@ public class UserService {
         }
 
         userRepository.delete(user);
+    }
+
+    public User assignRole(Long userId, Long roleId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found"));
+
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Role not found"));
+
+        user.getRoles().add(role);
+
+        return userRepository.save(user);
     }
 }
