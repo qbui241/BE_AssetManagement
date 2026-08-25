@@ -74,8 +74,11 @@ public class ApprovalTaskService {
         task.setApprovedBy(approver);
 
         ApprovalTask savedTask = approvalTaskRepository.save(task);
+
         ApprovalRequest approvalRequest = task.getApprovalRequest();
         approvalRequest.setStatus(ApprovalRequestStatus.REJECTED);
+        approvalRequest.setCompletedAt(LocalDateTime.now());
+
         return savedTask;
     }
 
@@ -111,6 +114,14 @@ public class ApprovalTaskService {
     private void validateApprover(
             ApprovalTask task,
             User approver) {
+        ApprovalRequest request = task.getApprovalRequest();
+
+        if (request.getRequester().getId().equals(approver.getId())) {
+            throw new IllegalStateException(
+                    "Requester cannot approve their own request"
+            );
+        }
+
         boolean hasRequiredRole =
                 approver.getRoles()
                         .stream()

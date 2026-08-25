@@ -1,5 +1,6 @@
 package com.assetmanagement.asset_management.service;
 
+import com.assetmanagement.asset_management.dto.AssetAssignmentRequest;
 import com.assetmanagement.asset_management.entity.*;
 import com.assetmanagement.asset_management.enums.ApprovalRequestStatus;
 import com.assetmanagement.asset_management.repository.ApprovalStepRepository;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -17,19 +19,21 @@ public class WorkflowEngineService {
     private final ApprovalWorkflowRepository approvalWorkflowRepository;
     private final ApprovalStepRepository approvalStepRepository;
     private final ApprovalTaskRepository approvalTaskRepository;
+    private final AssetService assetService;
 
     public WorkflowEngineService(
             ApprovalWorkflowRepository approvalWorkflowRepository,
             ApprovalStepRepository approvalStepRepository,
-            ApprovalTaskRepository approvalTaskRepository) {
+            ApprovalTaskRepository approvalTaskRepository,
+            AssetService assetService) {
 
         this.approvalWorkflowRepository = approvalWorkflowRepository;
         this.approvalStepRepository = approvalStepRepository;
         this.approvalTaskRepository = approvalTaskRepository;
+        this.assetService = assetService;
     }
 
     public ApprovalWorkflow findActiveWorkflow() {
-
         return approvalWorkflowRepository.findFirstByActiveTrue()
                 .orElseThrow(() ->
                         new IllegalStateException(
@@ -123,6 +127,13 @@ public class WorkflowEngineService {
         if (nextStep == null) {
             approvalRequest.setStatus(
                     ApprovalRequestStatus.APPROVED
+            );
+            approvalRequest.setCompletedAt(LocalDateTime.now());
+            assetService.assignAsset(
+                    approvalRequest.getAsset().getId(),
+                    new AssetAssignmentRequest(
+                            approvalRequest.getRequester().getId()
+                    )
             );
             return;
         }
