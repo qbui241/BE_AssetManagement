@@ -1,6 +1,7 @@
 package com.assetmanagement.asset_management.service;
 
 import com.assetmanagement.asset_management.dto.ApprovalRequestRequest;
+import com.assetmanagement.asset_management.dto.ApprovalRequestResponse;
 import com.assetmanagement.asset_management.entity.*;
 import com.assetmanagement.asset_management.enums.ApprovalRequestStatus;
 import com.assetmanagement.asset_management.enums.AssetStatus;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class ApprovalRequestService {
@@ -32,6 +34,26 @@ public class ApprovalRequestService {
         this.assetRepository = assetRepository;
         this.userRepository = userRepository;
         this.workflowEngineService = workflowEngineService;
+    }
+
+    public List<ApprovalRequestResponse> getAllRequests() {
+
+        return approvalRequestRepository.findAll()
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public ApprovalRequestResponse getRequestById(Long id) {
+
+        ApprovalRequest request =
+                approvalRequestRepository.findById(id)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Approval request not found"
+                                ));
+
+        return toResponse(request);
     }
 
     @Transactional
@@ -78,5 +100,28 @@ public class ApprovalRequestService {
         approvalRequest = approvalRequestRepository.save(approvalRequest);
         workflowEngineService.createFirstTask(approvalRequest);
         return approvalRequest;
+    }
+
+    private ApprovalRequestResponse toResponse(
+            ApprovalRequest request) {
+
+        return ApprovalRequestResponse.builder()
+                .id(request.getId())
+
+                .assetId(request.getAsset().getId())
+                .assetCode(request.getAsset().getAssetCode())
+                .assetName(request.getAsset().getName())
+
+                .requesterId(request.getRequester().getId())
+                .requesterName(request.getRequester().getName())
+
+                .workflowId(request.getWorkflow().getId())
+                .workflowName(request.getWorkflow().getName())
+
+                .currentStepOrder(request.getCurrentStepOrder())
+                .status(request.getStatus())
+                .createdAt(request.getCreatedAt())
+                .completedAt(request.getCompletedAt())
+                .build();
     }
 }

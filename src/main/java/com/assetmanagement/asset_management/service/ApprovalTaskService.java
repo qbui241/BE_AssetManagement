@@ -1,5 +1,6 @@
 package com.assetmanagement.asset_management.service;
 
+import com.assetmanagement.asset_management.dto.ApprovalTaskResponse;
 import com.assetmanagement.asset_management.entity.ApprovalRequest;
 import com.assetmanagement.asset_management.entity.ApprovalTask;
 import com.assetmanagement.asset_management.entity.User;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class ApprovalTaskService {
@@ -27,6 +29,43 @@ public class ApprovalTaskService {
         this.approvalTaskRepository = approvalTaskRepository;
         this.userRepository = userRepository;
         this.workflowEngineService = workflowEngineService;
+    }
+
+    public List<ApprovalTaskResponse> getTasks(
+            Long roleId,
+            ApprovalRequestStatus status) {
+
+        List<ApprovalTask> tasks;
+
+        if (roleId != null && status != null) {
+            tasks = approvalTaskRepository
+                    .findByRoleIdAndStatusOrderByStepOrderAsc(
+                            roleId,
+                            status
+                    );
+        } else if (roleId != null) {
+            tasks = approvalTaskRepository
+                    .findByRoleIdOrderByStepOrderAsc(roleId);
+        } else if (status != null) {
+            tasks = approvalTaskRepository
+                    .findByStatusOrderByStepOrderAsc(status);
+        } else {
+            tasks = approvalTaskRepository
+                    .findAll();
+        }
+
+        return tasks.stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public List<ApprovalTaskResponse> getTasksByRequestId(Long requestId) {
+
+        return approvalTaskRepository
+                .findByApprovalRequestIdOrderByStepOrderAsc(requestId)
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional
@@ -90,6 +129,7 @@ public class ApprovalTaskService {
                         ));
     }
 
+
     private void validateTask(ApprovalTask task) {
         if (task.getStatus() != ApprovalRequestStatus.PENDING) {
             throw new IllegalStateException(
@@ -132,5 +172,34 @@ public class ApprovalTaskService {
                     "User does not have the required role"
             );
         }
+    }
+
+    private ApprovalTaskResponse toResponse(ApprovalTask task) {
+
+        return ApprovalTaskResponse.builder()
+                .id(task.getId())
+                .approvalRequestId(
+                        task.getApprovalRequest().getId()
+                )
+                .roleId(
+                        task.getRole().getId()
+                )
+                .roleName(
+                        task.getRole().getName()
+                )
+                .stepOrder(task.getStepOrder())
+                .status(task.getStatus())
+                .approvedAt(task.getApprovedAt())
+                .approvedById(
+                        task.getApprovedBy() != null
+                                ? task.getApprovedBy().getId()
+                                : null
+                )
+                .approvedByName(
+                        task.getApprovedBy() != null
+                                ? task.getApprovedBy().getName()
+                                : null
+                )
+                .build();
     }
 }
