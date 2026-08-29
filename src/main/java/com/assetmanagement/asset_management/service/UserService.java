@@ -9,6 +9,7 @@ import com.assetmanagement.asset_management.repository.AssetHistoryRepository;
 import com.assetmanagement.asset_management.repository.DepartmentRepository;
 import com.assetmanagement.asset_management.repository.RoleRepository;
 import com.assetmanagement.asset_management.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,17 +21,20 @@ public class UserService {
     private final AssetHistoryRepository assetHistoryRepository;
     private final DepartmentRepository departmentRepository;
     private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public UserService(
             UserRepository userRepository,
             AssetHistoryRepository assetHistoryRepository,
             DepartmentRepository departmentRepository,
-            RoleRepository roleRepository) {
+            RoleRepository roleRepository,
+            PasswordEncoder passwordEncoder) {
 
         this.userRepository = userRepository;
         this.assetHistoryRepository = assetHistoryRepository;
         this.departmentRepository = departmentRepository;
         this.roleRepository = roleRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public List<User> getAllUsers() {
@@ -53,7 +57,10 @@ public class UserService {
         user.setName(request.getName());
         user.setEmail(request.getEmail());
         user.setDepartment(department);
-
+        user.setUsername(request.getUsername());
+        user.setPassword(
+                passwordEncoder.encode(request.getPassword())
+        );
         return userRepository.save(user);
     }
 
@@ -97,7 +104,6 @@ public class UserService {
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Role not found"));
-
         user.getRoles().add(role);
 
         return userRepository.save(user);

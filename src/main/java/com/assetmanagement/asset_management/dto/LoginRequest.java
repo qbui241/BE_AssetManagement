@@ -3,15 +3,8 @@ package com.assetmanagement.asset_management.dto;
 import lombok.Data;
 
 @Data
-public class UserRequest {
-
-    private String name;
+public class LoginRequest {
 
     private String username;
-
     private String password;
-
-    private String email;
-
-    private Long departmentId;
 }
