@@ -9,8 +9,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
-    List<User> id(Long id);
-    Optional<User> findByUsername(String username);
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
 
@@ -23,4 +21,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsernameWithRoles(
             @Param("username") String username
     );
+
+    @Query("""
+        SELECT DISTINCT u
+        FROM User u
+        LEFT JOIN FETCH u.roles
+        WHERE u.id = :id
+    """)
+    Optional<User> findByIdWithRoles(@Param("id") Long id);
+
+    @Query("""
+        SELECT DISTINCT u
+        FROM User u
+        LEFT JOIN FETCH u.roles
+    """)
+    List<User> findAllWithRoles();
 }

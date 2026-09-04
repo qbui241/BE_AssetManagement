@@ -1,6 +1,7 @@
 package com.assetmanagement.asset_management.service;
 
 import com.assetmanagement.asset_management.dto.UserRequest;
+import com.assetmanagement.asset_management.dto.UserResponse;
 import com.assetmanagement.asset_management.entity.Department;
 import com.assetmanagement.asset_management.entity.Role;
 import com.assetmanagement.asset_management.entity.User;
@@ -37,15 +38,28 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public List<User> getAllUsers() {
-        return userRepository.findAll();
+    public List<UserResponse> getAllUsers() {
+        return userRepository.findAllWithRoles()
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
-    public User getUserById(Long id) {
-        return userRepository.findById(id).orElseThrow(()->new ResourceNotFoundException("User not found"));
+    public UserResponse getUserById(Long id) {
+        User user = userRepository.findByIdWithRoles(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found"));
+        return toResponse(user);
     }
 
-    public User createUser(UserRequest request) {
+    public UserResponse createUser(UserRequest request) {
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new IllegalStateException("Username already exists");
+        }
+
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new IllegalStateException("Email already exists");
+        }
 
         Department department = departmentRepository.findById(
                 request.getDepartmentId()
@@ -53,7 +67,6 @@ public class UserService {
                 new ResourceNotFoundException("Department not found"));
 
         User user = new User();
-
         user.setName(request.getName());
         user.setEmail(request.getEmail());
         user.setDepartment(department);
@@ -61,12 +74,15 @@ public class UserService {
         user.setPassword(
                 passwordEncoder.encode(request.getPassword())
         );
-        return userRepository.save(user);
+
+        User savedUser = userRepository.save(user);
+        return toResponse(savedUser);
     }
 
-    public User updateUser(Long id, UserRequest request) {
-
-        User user = getUserById(id);
+    public UserResponse updateUser(Long id, UserRequest request) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found"));
 
         Department department = departmentRepository.findById(
                 request.getDepartmentId()
@@ -76,12 +92,12 @@ public class UserService {
         user.setName(request.getName());
         user.setEmail(request.getEmail());
         user.setDepartment(department);
+        User savedUser = userRepository.save(user);
 
-        return userRepository.save(user);
+        return toResponse(savedUser);
     }
 
     public void deleteUser(Long id) {
-
         User user = userRepository.findById(id)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("User not found"));
@@ -91,7 +107,6 @@ public class UserService {
                     "Cannot delete user because they have asset history"
             );
         }
-
         userRepository.delete(user);
     }
 
@@ -107,5 +122,25 @@ public class UserService {
         user.getRoles().add(role);
 
         return userRepository.save(user);
+    }
+
+    private UserResponse toResponse(User user) {
+        return UserResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .name(user.getName())
+                .email(user.getEmail())
+                .departmentId(
+                        user.getDepartment() != null
+                                ? user.getDepartment().getId()
+                                : null
+                )
+                .roles(
+                        user.getRoles()
+                                .stream()
+                                .map(role -> role.getName())
+                                .toList()
+                )
+                .build();
     }
 }
