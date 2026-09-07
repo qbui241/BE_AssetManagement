@@ -6,6 +6,7 @@ import com.assetmanagement.asset_management.dto.AssetResponse;
 import com.assetmanagement.asset_management.entity.Asset;
 import com.assetmanagement.asset_management.service.AssetService;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,6 +32,7 @@ public class AssetController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
     public AssetResponse createAsset(
             @Valid @RequestBody AssetRequest request) {
 
@@ -38,6 +40,7 @@ public class AssetController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
     public AssetResponse updateAsset(
             @PathVariable Long id,
             @Valid @RequestBody AssetRequest request) {
@@ -46,11 +49,13 @@ public class AssetController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('DIRECTOR')")
     public void deleteAsset(@PathVariable Long id) {
         assetService.deleteAsset(id);
     }
 
     @PostMapping("/{id}/assign")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
     public AssetResponse assignAsset(
             @PathVariable Long id,
             @Valid @RequestBody AssetAssignmentRequest request) {
@@ -59,21 +64,25 @@ public class AssetController {
     }
 
     @PostMapping("/{id}/return")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
     public AssetResponse returnAsset(@PathVariable Long id) {
         return assetService.returnAsset(id);
     }
 
     @PostMapping("/{id}/maintenance")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
     public AssetResponse maintenanceAsset(@PathVariable Long id) {
         return assetService.maintenanceAsset(id);
     }
 
     @PostMapping("/{id}/available")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
     public AssetResponse makeAvailable(@PathVariable Long id) {
         return assetService.makeAvailable(id);
     }
 
     @PostMapping("/{id}/dispose")
+    @PreAuthorize("hasRole('DIRECTOR')")
     public AssetResponse disposeAsset(@PathVariable Long id) {
         return assetService.disposeAsset(id);
     }
