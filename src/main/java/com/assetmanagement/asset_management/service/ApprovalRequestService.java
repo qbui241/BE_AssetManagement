@@ -9,6 +9,9 @@ import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.ApprovalRequestRepository;
 import com.assetmanagement.asset_management.repository.AssetRepository;
 import com.assetmanagement.asset_management.repository.UserRepository;
+import com.assetmanagement.asset_management.security.CustomUserDetails;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,7 +60,7 @@ public class ApprovalRequestService {
     }
 
     @Transactional
-    public ApprovalRequest createRequest(
+    public ApprovalRequestResponse  createRequest(
             ApprovalRequestRequest request) {
 
         Asset asset = assetRepository.findById(request.getAssetId())
@@ -66,11 +69,13 @@ public class ApprovalRequestService {
                                 "Asset not found"
                         ));
 
-        User requester = userRepository.findById(request.getRequesterId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "User not found"
-                        ));
+        Authentication authentication =
+                SecurityContextHolder.getContext().getAuthentication();
+
+        CustomUserDetails userDetails =
+                (CustomUserDetails) authentication.getPrincipal();
+
+        User requester = userDetails.getUser();
 
         if (asset.getStatus() != AssetStatus.AVAILABLE) {
             throw new IllegalStateException(
@@ -99,7 +104,7 @@ public class ApprovalRequestService {
 
         approvalRequest = approvalRequestRepository.save(approvalRequest);
         workflowEngineService.createFirstTask(approvalRequest);
-        return approvalRequest;
+        return toResponse(approvalRequest);
     }
 
     private ApprovalRequestResponse toResponse(

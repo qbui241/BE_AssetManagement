@@ -8,8 +8,4 @@ public class ApprovalRequestRequest {
 
     @NotNull(message = "assetId is required")
     private Long assetId;
-
-    @NotNull(message = "requesterId is required")
-    private Long requesterId;
-    
 }

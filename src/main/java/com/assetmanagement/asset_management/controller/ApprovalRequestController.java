@@ -44,9 +44,8 @@ public class ApprovalRequestController {
     }
 
     @PostMapping
-    public ApprovalRequest createRequest(
+    public ApprovalRequestResponse createRequest(
             @Valid @RequestBody ApprovalRequestRequest request) {
-
         return approvalRequestService.createRequest(request);
     }
 }
