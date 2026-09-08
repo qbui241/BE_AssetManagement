@@ -5,9 +5,13 @@ import com.assetmanagement.asset_management.entity.ApprovalRequest;
 import com.assetmanagement.asset_management.entity.ApprovalTask;
 import com.assetmanagement.asset_management.entity.User;
 import com.assetmanagement.asset_management.enums.ApprovalRequestStatus;
+import com.assetmanagement.asset_management.exception.AccessDeniedException;
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.ApprovalTaskRepository;
 import com.assetmanagement.asset_management.repository.UserRepository;
+import com.assetmanagement.asset_management.security.CustomUserDetails;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,17 +73,13 @@ public class ApprovalTaskService {
     }
 
     @Transactional
-    public ApprovalTask approveTask(
-            Long taskId,
-            Long approverId) {
+    public ApprovalTaskResponse approveTask(Long taskId) {
 
         ApprovalTask task = getTaskById(taskId);
 
-        User approver = userRepository.findById(approverId)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "User not found"
-                        ));
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User approver = userDetails.getUser();
 
         validateTask(task);
         validateApprover(task, approver);
@@ -90,21 +90,18 @@ public class ApprovalTaskService {
 
         ApprovalTask savedTask = approvalTaskRepository.save(task);
         workflowEngineService.processApprovedTask(savedTask);
-        return savedTask;
+        return toResponse(savedTask);
     }
 
     @Transactional
-    public ApprovalTask rejectTask(
-            Long taskId,
-            Long approverId) {
+    public ApprovalTaskResponse rejectTask(
+            Long taskId) {
 
         ApprovalTask task = getTaskById(taskId);
 
-        User approver = userRepository.findById(approverId)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "User not found"
-                        ));
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User approver = userDetails.getUser();
 
         validateTask(task);
         validateApprover(task, approver);
@@ -118,7 +115,7 @@ public class ApprovalTaskService {
         approvalRequest.setStatus(ApprovalRequestStatus.REJECTED);
         approvalRequest.setCompletedAt(LocalDateTime.now());
 
-        return savedTask;
+        return toResponse(savedTask);
     }
 
     public ApprovalTask getTaskById(Long id) {
@@ -168,7 +165,7 @@ public class ApprovalTaskService {
                         .anyMatch(role -> role.getId().equals(task.getRole().getId())
                         );
         if (!hasRequiredRole) {
-            throw new IllegalStateException(
+            throw new AccessDeniedException(
                     "User does not have the required role"
             );
         }
