@@ -7,7 +7,9 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/approval-workflows")
 public class ApprovalWorkflowController {

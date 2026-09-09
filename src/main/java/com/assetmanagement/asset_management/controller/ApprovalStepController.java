@@ -7,7 +7,9 @@ import com.assetmanagement.asset_management.service.ApprovalStepService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/approval-steps")
 public class ApprovalStepController {
