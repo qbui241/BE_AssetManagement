@@ -8,6 +8,7 @@ import com.assetmanagement.asset_management.entity.ApprovalTask;
 import com.assetmanagement.asset_management.service.ApprovalRequestService;
 import com.assetmanagement.asset_management.service.ApprovalTaskService;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,25 +28,38 @@ public class ApprovalRequestController {
     }
 
     @GetMapping("/{requestId}/tasks")
+    @PreAuthorize(
+            "hasAnyRole('MANAGER', 'DIRECTOR') " +
+                    "or @approvalRequestSecurity.isRequester(#requestId, authentication)"
+    )
     public List<ApprovalTaskResponse> getTasksByRequestId(
             @PathVariable Long requestId) {
+
         return approvalTaskService.getTasksByRequestId(requestId);
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
     public List<ApprovalRequestResponse> getAllRequests() {
         return approvalRequestService.getAllRequests();
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize(
+            "hasAnyRole('MANAGER', 'DIRECTOR') " +
+                    "or @approvalRequestSecurity.isRequester(#id, authentication)"
+    )
     public ApprovalRequestResponse getRequestById(
             @PathVariable Long id) {
+
         return approvalRequestService.getRequestById(id);
     }
 
     @PostMapping
+    @PreAuthorize("isAuthenticated()")
     public ApprovalRequestResponse createRequest(
             @Valid @RequestBody ApprovalRequestRequest request) {
+
         return approvalRequestService.createRequest(request);
     }
 }
