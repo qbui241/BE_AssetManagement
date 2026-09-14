@@ -1,5 +1,6 @@
 package com.assetmanagement.asset_management.dto;
 
+import com.assetmanagement.asset_management.enums.DepartmentScope;
 import lombok.Builder;
 import lombok.Data;
 
@@ -21,4 +22,9 @@ public class ApprovalStepResponse {
 
     private BigDecimal minValue;
     private BigDecimal maxValue;
+    private DepartmentScope departmentScope;
+    private Long departmentId;
+    private String departmentName;
+    private Long branchId;
+    private String branchName;
 }

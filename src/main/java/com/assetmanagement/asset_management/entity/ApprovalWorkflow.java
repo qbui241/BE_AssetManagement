@@ -1,5 +1,6 @@
 package com.assetmanagement.asset_management.entity;
 
+import com.assetmanagement.asset_management.enums.ActionType;
 import com.assetmanagement.asset_management.enums.WorkflowType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -27,6 +28,10 @@ public class ApprovalWorkflow {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private WorkflowType type;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ActionType actionType;
 
     @Column(nullable = false)
     private boolean active;

@@ -3,8 +3,6 @@ package com.assetmanagement.asset_management.controller;
 import com.assetmanagement.asset_management.dto.ApprovalRequestRequest;
 import com.assetmanagement.asset_management.dto.ApprovalRequestResponse;
 import com.assetmanagement.asset_management.dto.ApprovalTaskResponse;
-import com.assetmanagement.asset_management.entity.ApprovalRequest;
-import com.assetmanagement.asset_management.entity.ApprovalTask;
 import com.assetmanagement.asset_management.service.ApprovalRequestService;
 import com.assetmanagement.asset_management.service.ApprovalTaskService;
 import jakarta.validation.Valid;

@@ -31,4 +31,6 @@ public class ApprovalTaskResponse {
     private Long approvedById;
 
     private String approvedByName;
+
+    private String note;
 }

@@ -1,5 +1,6 @@
 package com.assetmanagement.asset_management.dto;
 
+import com.assetmanagement.asset_management.enums.DepartmentScope;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -20,4 +21,10 @@ public class ApprovalStepRequest {
     private BigDecimal minValue;
 
     private BigDecimal maxValue;
+
+    @NotNull(message = "departmentScope is required")
+    private DepartmentScope departmentScope;
+
+    private Long departmentId; // chi dung khi scope = SPECIFIC_DEPARTMENT
+    private Long branchId;     // chi dung khi scope = SPECIFIC_BRANCH
 }

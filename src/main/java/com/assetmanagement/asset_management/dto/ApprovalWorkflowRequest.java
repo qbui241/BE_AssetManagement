@@ -1,5 +1,6 @@
 package com.assetmanagement.asset_management.dto;
 
+import com.assetmanagement.asset_management.enums.ActionType;
 import com.assetmanagement.asset_management.enums.WorkflowType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -15,6 +16,9 @@ public class ApprovalWorkflowRequest {
 
     @NotNull(message = "Workflow type is required")
     private WorkflowType type;
+
+    @NotNull(message = "actionType is required")
+    private ActionType actionType;
 
     private boolean active;
 }

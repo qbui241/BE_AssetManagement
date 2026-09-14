@@ -3,8 +3,10 @@ package com.assetmanagement.asset_management.service;
 import com.assetmanagement.asset_management.dto.ApprovalRequestRequest;
 import com.assetmanagement.asset_management.dto.ApprovalRequestResponse;
 import com.assetmanagement.asset_management.entity.*;
+import com.assetmanagement.asset_management.enums.ActionType;
 import com.assetmanagement.asset_management.enums.ApprovalRequestStatus;
 import com.assetmanagement.asset_management.enums.AssetStatus;
+import com.assetmanagement.asset_management.exception.InvalidStatusTransitionException;
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.ApprovalRequestRepository;
 import com.assetmanagement.asset_management.repository.AssetRepository;
@@ -23,20 +25,18 @@ public class ApprovalRequestService {
 
     private final ApprovalRequestRepository approvalRequestRepository;
     private final AssetRepository assetRepository;
-    private final UserRepository userRepository;
     private final WorkflowEngineService workflowEngineService;
-
+    private final UserRepository userRepository;
 
     public ApprovalRequestService(
             ApprovalRequestRepository approvalRequestRepository,
             AssetRepository assetRepository,
-            UserRepository userRepository,
-            WorkflowEngineService workflowEngineService) {
-
+            WorkflowEngineService workflowEngineService,
+            UserRepository userRepository) {
         this.approvalRequestRepository = approvalRequestRepository;
         this.assetRepository = assetRepository;
-        this.userRepository = userRepository;
         this.workflowEngineService = workflowEngineService;
+        this.userRepository = userRepository;
     }
 
     public List<ApprovalRequestResponse> getAllRequests() {
@@ -60,71 +60,72 @@ public class ApprovalRequestService {
     }
 
     @Transactional
-    public ApprovalRequestResponse  createRequest(
-            ApprovalRequestRequest request) {
+    public ApprovalRequestResponse createRequest(ApprovalRequestRequest requestDto) {
+        Asset asset = assetRepository.findById(requestDto.getAssetId())
+                .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
 
-        Asset asset = assetRepository.findById(request.getAssetId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "Asset not found"
-                        ));
+        ActionType actionType = requestDto.getActionType();
 
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
+        validateAssetStatusForAction(asset, actionType);
 
-        CustomUserDetails userDetails =
-                (CustomUserDetails) authentication.getPrincipal();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User requester = userRepository.findById(userDetails.getUser().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        User requester = userDetails.getUser();
-
-        if (asset.getStatus() != AssetStatus.AVAILABLE) {
-            throw new IllegalStateException(
-                    "Asset is not available for assignment"
-            );
+        if (actionType == ActionType.ASSIGNMENT) {
+            validateSameBranch(requester, asset);
         }
 
-        ApprovalWorkflow workflow =
-                workflowEngineService.findActiveWorkflow();
+        ApprovalWorkflow workflow = workflowEngineService.findActiveWorkflow(actionType);
 
-        ApprovalStep firstStep =
-                workflowEngineService.findFirstApplicableStep(
-                        asset,
-                        workflow
-                );
+        ApprovalRequest approvalRequest = ApprovalRequest.builder()
+                .asset(asset)
+                .workflow(workflow)
+                .requester(requester)
+                .status(ApprovalRequestStatus.PENDING)
+                .createdAt(LocalDateTime.now())
+                .currentStepOrder(1)
+                .build();
 
-        ApprovalRequest approvalRequest =
-                ApprovalRequest.builder()
-                        .asset(asset)
-                        .requester(requester)
-                        .workflow(workflow)
-                        .currentStepOrder(firstStep.getStepOrder())
-                        .status(ApprovalRequestStatus.PENDING)
-                        .createdAt(LocalDateTime.now())
-                        .build();
-
-        approvalRequest = approvalRequestRepository.save(approvalRequest);
-        workflowEngineService.createFirstTask(approvalRequest);
-        return toResponse(approvalRequest);
+        ApprovalRequest savedRequest = approvalRequestRepository.save(approvalRequest);
+        workflowEngineService.createInitialTasks(savedRequest);
+        return toResponse(savedRequest);
     }
 
-    private ApprovalRequestResponse toResponse(
-            ApprovalRequest request) {
+    private void validateSameBranch(User requester, Asset asset) {
+        Long requesterBranchId = requester.getDepartment().getBranch().getId();
+        Long assetBranchId = asset.getDepartment().getBranch().getId();
 
+        if (!requesterBranchId.equals(assetBranchId)) {
+            throw new IllegalStateException(
+                    "Cannot request an asset from a different branch. " +
+                            "Cross-branch assignment is not allowed."
+            );
+        }
+    }
+
+    private void validateAssetStatusForAction(Asset asset, ActionType actionType) {
+        if (actionType == ActionType.ASSIGNMENT && asset.getStatus() != AssetStatus.AVAILABLE) {
+            throw new InvalidStatusTransitionException("Asset must be AVAILABLE for assignment");
+        }
+
+        if (actionType == ActionType.DISPOSAL && asset.getStatus() != AssetStatus.RETURNED) {
+            throw new InvalidStatusTransitionException("Asset must be RETURNED for disposal");
+        }
+    }
+
+    private ApprovalRequestResponse toResponse(ApprovalRequest request) {
         return ApprovalRequestResponse.builder()
                 .id(request.getId())
-
                 .assetId(request.getAsset().getId())
-                .assetCode(request.getAsset().getAssetCode())
                 .assetName(request.getAsset().getName())
-
-                .requesterId(request.getRequester().getId())
-                .requesterName(request.getRequester().getName())
-
                 .workflowId(request.getWorkflow().getId())
                 .workflowName(request.getWorkflow().getName())
-
-                .currentStepOrder(request.getCurrentStepOrder())
+                .requesterId(request.getRequester().getId())
+                .requesterName(request.getRequester().getName())
                 .status(request.getStatus())
+                .currentStepOrder(request.getCurrentStepOrder())
                 .createdAt(request.getCreatedAt())
                 .completedAt(request.getCompletedAt())
                 .build();
