@@ -3,6 +3,7 @@ package com.assetmanagement.asset_management.controller;
 import com.assetmanagement.asset_management.dto.AssetHistoryResponse;
 import com.assetmanagement.asset_management.entity.AssetHistory;
 import com.assetmanagement.asset_management.service.AssetHistoryService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,6 +23,7 @@ public class AssetHistoryController {
         this.assetHistoryService = assetHistoryService;
     }
 
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
     @GetMapping
     public List<AssetHistoryResponse> getAssetHistories(
             @RequestParam(required = false) Long assetId,

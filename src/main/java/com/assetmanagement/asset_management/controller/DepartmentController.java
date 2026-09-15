@@ -3,6 +3,7 @@ package com.assetmanagement.asset_management.controller;
 import com.assetmanagement.asset_management.dto.DepartmentRequest;
 import com.assetmanagement.asset_management.entity.Department;
 import com.assetmanagement.asset_management.service.DepartmentService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,6 +33,7 @@ public class DepartmentController {
         return departmentService.getDepartmentById(id);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public Department createDepartment(
             @RequestBody DepartmentRequest departmentRequest) {
@@ -39,6 +41,7 @@ public class DepartmentController {
         return departmentService.createDepartment(departmentRequest);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public Department updateDepartment(
             @PathVariable Long id,
@@ -50,6 +53,7 @@ public class DepartmentController {
         );
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public void deleteDepartment(
             @PathVariable Long id) {
