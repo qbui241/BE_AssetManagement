@@ -1,0 +1,41 @@
+services:
+  db:
+    image: mariadb:11.4
+    container_name: asset_management_db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: quan123
+      MARIADB_DATABASE: asset_management
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asset_management_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+      JPA_DDL_AUTO: ${JPA_DDL_AUTO}
+    ports:
+      - "8080:8080"
+
+volumes:
+  db_data:
