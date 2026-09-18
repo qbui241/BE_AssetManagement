@@ -6,6 +6,7 @@ import com.assetmanagement.asset_management.entity.*;
 import com.assetmanagement.asset_management.enums.ActionType;
 import com.assetmanagement.asset_management.enums.ApprovalRequestStatus;
 import com.assetmanagement.asset_management.enums.AssetStatus;
+import com.assetmanagement.asset_management.exception.AccessDeniedException;
 import com.assetmanagement.asset_management.exception.InvalidStatusTransitionException;
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.ApprovalRequestRepository;
@@ -22,6 +23,9 @@ import java.util.List;
 
 @Service
 public class ApprovalRequestService {
+
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_MANAGER = "MANAGER";
 
     private final ApprovalRequestRepository approvalRequestRepository;
     private final AssetRepository assetRepository;
@@ -40,7 +44,6 @@ public class ApprovalRequestService {
     }
 
     public List<ApprovalRequestResponse> getAllRequests() {
-
         return approvalRequestRepository.findAll()
                 .stream()
                 .map(this::toResponse)
@@ -48,13 +51,10 @@ public class ApprovalRequestService {
     }
 
     public ApprovalRequestResponse getRequestById(Long id) {
-
         ApprovalRequest request =
                 approvalRequestRepository.findById(id)
                         .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Approval request not found"
-                                ));
+                                new ResourceNotFoundException("Approval request not found"));
 
         return toResponse(request);
     }
@@ -74,7 +74,11 @@ public class ApprovalRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (actionType == ActionType.ASSIGNMENT) {
-            validateSameBranch(requester, asset);
+            validateSameBranch(requester, asset, false);
+        }
+
+        if (actionType == ActionType.DISPOSAL) {
+            validateDisposalRequest(asset, requester);
         }
 
         ApprovalWorkflow workflow = workflowEngineService.findActiveWorkflow(actionType);
@@ -93,16 +97,32 @@ public class ApprovalRequestService {
         return toResponse(savedRequest);
     }
 
-    private void validateSameBranch(User requester, Asset asset) {
+    private void validateSameBranch(User requester, Asset asset, boolean allowAdminBypass) {
+        if (allowAdminBypass && hasRole(requester, ROLE_ADMIN)) {
+            return;
+        }
+
         Long requesterBranchId = requester.getDepartment().getBranch().getId();
         Long assetBranchId = asset.getDepartment().getBranch().getId();
 
         if (!requesterBranchId.equals(assetBranchId)) {
-            throw new IllegalStateException(
-                    "Cannot request an asset from a different branch. " +
-                            "Cross-branch assignment is not allowed."
+            throw new AccessDeniedException(
+                    "Cannot request an asset from a different branch"
             );
         }
+    }
+
+    private boolean hasRole(User user, String roleName) {
+        return user.getRoles().stream().anyMatch(r -> r.getName().equals(roleName));
+    }
+
+    private void validateDisposalRequest(Asset asset, User requester) {
+        boolean isPrivilegedUser = hasRole(requester, ROLE_ADMIN) || hasRole(requester, ROLE_MANAGER);
+        if (!isPrivilegedUser) {
+            throw new AccessDeniedException("User does not have the required role");
+        }
+
+        validateSameBranch(requester, asset, true);
     }
 
     private void validateAssetStatusForAction(Asset asset, ActionType actionType) {

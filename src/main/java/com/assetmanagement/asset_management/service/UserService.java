@@ -5,11 +5,15 @@ import com.assetmanagement.asset_management.dto.UserResponse;
 import com.assetmanagement.asset_management.entity.Department;
 import com.assetmanagement.asset_management.entity.Role;
 import com.assetmanagement.asset_management.entity.User;
+import com.assetmanagement.asset_management.exception.AccessDeniedException;
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.AssetHistoryRepository;
 import com.assetmanagement.asset_management.repository.DepartmentRepository;
 import com.assetmanagement.asset_management.repository.RoleRepository;
 import com.assetmanagement.asset_management.repository.UserRepository;
+import com.assetmanagement.asset_management.security.CustomUserDetails;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +21,8 @@ import java.util.List;
 
 @Service
 public class UserService {
+
+    private static final String ROLE_ADMIN = "ADMIN";
 
     private final UserRepository userRepository;
     private final AssetHistoryRepository assetHistoryRepository;
@@ -110,7 +116,7 @@ public class UserService {
         userRepository.delete(user);
     }
 
-    public User assignRole(Long userId, Long roleId) {
+    public UserResponse assignRole(Long userId, Long roleId) {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
@@ -119,9 +125,43 @@ public class UserService {
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Role not found"));
+
+        validateSameBranchForRoleAssignment(user);
+
         user.getRoles().add(role);
 
-        return userRepository.save(user);
+        User savedUser = userRepository.save(user);
+        return toResponse(savedUser);
+    }
+
+    private void validateSameBranchForRoleAssignment(User targetUser) {
+        Authentication authentication =
+                SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails userDetails =
+                (CustomUserDetails) authentication.getPrincipal();
+
+        User currentUser = userRepository.findById(userDetails.getUser().getId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found"));
+
+        if (hasRole(currentUser, ROLE_ADMIN)) {
+            return;
+        }
+
+        Long currentUserBranchId = currentUser.getDepartment().getBranch().getId();
+        Long targetUserBranchId = targetUser.getDepartment().getBranch().getId();
+
+        if (!currentUserBranchId.equals(targetUserBranchId)) {
+            throw new AccessDeniedException(
+                    "Cannot assign a role to a user from a different branch."
+            );
+        }
+    }
+
+    private boolean hasRole(User user, String roleName) {
+        return user.getRoles()
+                .stream()
+                .anyMatch(r -> r.getName().equals(roleName));
     }
 
     private UserResponse toResponse(User user) {

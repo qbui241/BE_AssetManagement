@@ -21,7 +21,11 @@ public class WorkflowEngineService {
     private final ApprovalTaskRepository approvalTaskRepository;
     private final ApprovalRequestRepository approvalRequestRepository;
     private final AssetRepository assetRepository;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
     private final AssetService assetService;
+    private final AuditLogService auditLogService;
+    private final NotificationService notificationService;
 
     public WorkflowEngineService(
             ApprovalWorkflowRepository approvalWorkflowRepository,
@@ -29,13 +33,21 @@ public class WorkflowEngineService {
             ApprovalTaskRepository approvalTaskRepository,
             ApprovalRequestRepository approvalRequestRepository,
             AssetRepository assetRepository,
-            AssetService assetService) {
+            UserRepository userRepository,
+            RoleRepository roleRepository,
+            AssetService assetService,
+            AuditLogService auditLogService,
+            NotificationService notificationService) {
         this.approvalWorkflowRepository = approvalWorkflowRepository;
         this.approvalStepRepository = approvalStepRepository;
         this.approvalTaskRepository = approvalTaskRepository;
         this.approvalRequestRepository = approvalRequestRepository;
         this.assetRepository = assetRepository;
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
         this.assetService = assetService;
+        this.auditLogService = auditLogService;
+        this.notificationService = notificationService;
     }
 
     public ApprovalWorkflow findActiveWorkflow(ActionType actionType) {
@@ -97,6 +109,7 @@ public class WorkflowEngineService {
                 .build();
 
         approvalTaskRepository.save(task);
+        notifyEligibleApprovers(task, approvalRequest);
     }
 
     private void createParallelTasks(ApprovalRequest approvalRequest, List<ApprovalStep> applicableSteps) {
@@ -114,6 +127,7 @@ public class WorkflowEngineService {
                     .build();
 
             approvalTaskRepository.save(task);
+            notifyEligibleApprovers(task, approvalRequest);
         }
     }
 
@@ -122,9 +136,29 @@ public class WorkflowEngineService {
         ApprovalRequest approvalRequest = currentTask.getApprovalRequest();
         ApprovalWorkflow workflow = approvalRequest.getWorkflow();
 
+        auditLogService.log(
+                "APPROVAL_TASK",
+                currentTask.getId(),
+                currentTask.getStatus().name(),
+                "PENDING",
+                currentTask.getStatus().name(),
+                "Task step " + currentTask.getStepOrder() + " (" + currentTask.getRole().getName() + ") "
+                        + (currentTask.getStatus() == ApprovalRequestStatus.APPROVED ? "được duyệt" : "bị từ chối"),
+                currentTask.getApprovedBy()
+        );
+
         if (workflow.getType() == WorkflowType.SEQUENTIAL) {
             if (currentTask.getStatus() == ApprovalRequestStatus.REJECTED) {
                 terminateApprovalRequest(approvalRequest, ApprovalRequestStatus.CANCELLED);
+                notificationService.notify(
+                        approvalRequest.getRequester(),
+                        "Yêu cầu bị từ chối",
+                        "Yêu cầu #" + approvalRequest.getId() + " cho tài sản "
+                                + approvalRequest.getAsset().getAssetCode() + " đã bị từ chối ở bước "
+                                + currentTask.getStepOrder() + ".",
+                        "APPROVAL_REQUEST",
+                        approvalRequest.getId()
+                );
             } else {
                 processSequentialNextStep(currentTask, approvalRequest, workflow);
             }
@@ -132,16 +166,162 @@ public class WorkflowEngineService {
             if (currentTask.getStatus() == ApprovalRequestStatus.REJECTED) {
                 String reason = buildRejectionCascadeNote(currentTask);
 
+                notifyOtherApproversInStep(currentTask, approvalRequest, reason);
+
                 approvalTaskRepository.cancelPendingSiblingTasks(
                         approvalRequest.getId(),
                         currentTask.getStepOrder(),
                         reason
                 );
                 terminateApprovalRequest(approvalRequest, ApprovalRequestStatus.CANCELLED);
+
+                notificationService.notify(
+                        approvalRequest.getRequester(),
+                        "Yêu cầu bị từ chối",
+                        "Yêu cầu #" + approvalRequest.getId() + " cho tài sản "
+                                + approvalRequest.getAsset().getAssetCode() + " " + reason.toLowerCase() + ".",
+                        "APPROVAL_REQUEST",
+                        approvalRequest.getId()
+                );
             } else {
                 processParallelEvaluation(currentTask.getStepOrder(), approvalRequest);
             }
         }
+    }
+
+    private void notifyOtherApproversInStep(
+            ApprovalTask rejectedTask,
+            ApprovalRequest approvalRequest,
+            String reason) {
+
+        List<ApprovalTask> siblingTasks = approvalTaskRepository
+                .findByApprovalRequestId(approvalRequest.getId())
+                .stream()
+                .filter(t -> t.getStepOrder().equals(rejectedTask.getStepOrder()))
+                .filter(t -> !t.getId().equals(rejectedTask.getId()))
+                .filter(t -> t.getStatus() == ApprovalRequestStatus.PENDING)
+                .toList();
+
+        for (ApprovalTask sibling : siblingTasks) {
+            List<User> approvers = filterOutRequester(
+                    findEligibleApproversFor(sibling), approvalRequest
+            );
+            for (User approver : approvers) {
+                notificationService.notify(
+                        approver,
+                        "Yêu cầu duyệt đã bị huỷ",
+                        reason + " - yêu cầu #" + approvalRequest.getId() + " không cần bạn duyệt nữa.",
+                        "APPROVAL_TASK",
+                        sibling.getId()
+                );
+            }
+        }
+    }
+
+    private List<User> findEligibleApproversFor(ApprovalTask task) {
+        Long departmentId = task.getDepartment() != null ? task.getDepartment().getId() : null;
+        Long branchId = task.getBranch() != null ? task.getBranch().getId() : null;
+
+        return userRepository.findEligibleApprovers(task.getRole().getId(), departmentId, branchId);
+    }
+
+    private void notifyEligibleApprovers(ApprovalTask task, ApprovalRequest approvalRequest) {
+        List<User> approvers = filterOutRequester(
+                findEligibleApproversFor(task), approvalRequest
+        );
+
+        // Nếu sau khi loại chính người yêu cầu ra, không còn ai đủ điều
+        // kiện duyệt task này (ví dụ phòng ban chỉ có đúng 1 MANAGER và
+        // đó chính là requester) -> tự động escalate lên cấp cao hơn
+        // thay vì để task treo PENDING vĩnh viễn mà không ai được báo.
+        if (approvers.isEmpty()) {
+            approvers = escalateTask(task, approvalRequest);
+        }
+
+        for (User approver : approvers) {
+            notificationService.notify(
+                    approver,
+                    "Có yêu cầu mới cần duyệt",
+                    "Yêu cầu #" + approvalRequest.getId() + " cho tài sản "
+                            + approvalRequest.getAsset().getAssetCode() + " đang chờ bạn duyệt (bước "
+                            + task.getStepOrder() + ").",
+                    "APPROVAL_TASK",
+                    task.getId()
+            );
+        }
+    }
+
+    // Escalation: MANAGER hết người (trừ requester) -> chuyển task cho
+    // DIRECTOR của branch tương ứng. Nếu DIRECTOR cũng không có ai (hoặc
+    // step vốn đã ở cấp DIRECTOR trở lên và vẫn rỗng) -> chuyển tiếp cho
+    // ADMIN, vốn đã được thiết kế là cấp override cuối cùng của hệ thống.
+    // Việc escalate sẽ SỬA LUÔN role/department/branch của task, để người
+    // được escalate tới thực sự đủ điều kiện approve (validateApprover
+    // check theo đúng các field này), không chỉ đổi người nhận thông báo.
+    private List<User> escalateTask(ApprovalTask task, ApprovalRequest approvalRequest) {
+        String fromRole = task.getRole().getName();
+
+        if ("MANAGER".equals(fromRole)) {
+            Branch branch = task.getDepartment() != null
+                    ? task.getDepartment().getBranch()
+                    : task.getBranch();
+
+            if (branch != null) {
+                List<User> directors = escalateTo(
+                        task, approvalRequest, "DIRECTOR", null, branch, fromRole
+                );
+                if (!directors.isEmpty()) {
+                    return directors;
+                }
+                fromRole = "DIRECTOR";
+            }
+        }
+
+        if (!"ADMIN".equals(fromRole)) {
+            return escalateTo(task, approvalRequest, "ADMIN", null, null, fromRole);
+        }
+
+        return List.of();
+    }
+
+    private List<User> escalateTo(
+            ApprovalTask task,
+            ApprovalRequest approvalRequest,
+            String roleName,
+            Department department,
+            Branch branch,
+            String fromRoleName) {
+
+        Role role = roleRepository.findByName(roleName)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Role " + roleName + " chưa được cấu hình trong hệ thống"
+                ));
+
+        task.setRole(role);
+        task.setDepartment(department);
+        task.setBranch(branch);
+        ApprovalTask savedTask = approvalTaskRepository.save(task);
+
+        auditLogService.log(
+                "APPROVAL_TASK",
+                savedTask.getId(),
+                "ESCALATED",
+                fromRoleName,
+                roleName,
+                "Không còn ai đủ điều kiện duyệt ở cấp " + fromRoleName
+                        + " (ngoại trừ chính người yêu cầu) nên hệ thống tự động"
+                        + " chuyển task lên cấp " + roleName + ".",
+                null
+        );
+
+        return filterOutRequester(findEligibleApproversFor(savedTask), approvalRequest);
+    }
+
+    private List<User> filterOutRequester(List<User> users, ApprovalRequest approvalRequest) {
+        Long requesterId = approvalRequest.getRequester().getId();
+        return users.stream()
+                .filter(u -> !u.getId().equals(requesterId))
+                .toList();
     }
 
     private String buildRejectionCascadeNote(ApprovalTask rejectedTask) {
@@ -195,6 +375,7 @@ public class WorkflowEngineService {
                     .build();
 
             approvalTaskRepository.save(nextTask);
+            notifyEligibleApprovers(nextTask, approvalRequest);
             return;
         }
     }
@@ -256,12 +437,30 @@ public class WorkflowEngineService {
 
             assetService.assignAsset(
                     asset.getId(),
-            new AssetAssignmentRequest(approvalRequest.getRequester().getId())
+                    new AssetAssignmentRequest(approvalRequest.getRequester().getId())
             );
 
             approvalRequest.setStatus(ApprovalRequestStatus.APPROVED);
             approvalRequest.setCompletedAt(LocalDateTime.now());
             approvalRequestRepository.save(approvalRequest);
+
+            auditLogService.log(
+                    "APPROVAL_REQUEST",
+                    approvalRequest.getId(),
+                    "APPROVED",
+                    "PENDING",
+                    "APPROVED",
+                    "Yêu cầu cấp phát tài sản " + asset.getAssetCode() + " đã được duyệt xong",
+                    null
+            );
+
+            notificationService.notify(
+                    approvalRequest.getRequester(),
+                    "Yêu cầu đã được duyệt",
+                    "Tài sản " + asset.getAssetCode() + " đã được cấp phát cho bạn.",
+                    "APPROVAL_REQUEST",
+                    approvalRequest.getId()
+            );
 
             cancelCompetingRequests(approvalRequest.getId(), asset.getId());
 
@@ -270,6 +469,24 @@ public class WorkflowEngineService {
             approvalRequest.setStatus(ApprovalRequestStatus.APPROVED);
             approvalRequest.setCompletedAt(LocalDateTime.now());
             approvalRequestRepository.save(approvalRequest);
+
+            auditLogService.log(
+                    "APPROVAL_REQUEST",
+                    approvalRequest.getId(),
+                    "APPROVED",
+                    "PENDING",
+                    "APPROVED",
+                    "Yêu cầu thanh lý tài sản " + asset.getAssetCode() + " đã được duyệt xong",
+                    null
+            );
+
+            notificationService.notify(
+                    approvalRequest.getRequester(),
+                    "Yêu cầu đã được duyệt",
+                    "Tài sản " + asset.getAssetCode() + " đã được thanh lý theo yêu cầu của bạn.",
+                    "APPROVAL_REQUEST",
+                    approvalRequest.getId()
+            );
         }
     }
 
@@ -282,9 +499,27 @@ public class WorkflowEngineService {
             competing.setCompletedAt(LocalDateTime.now());
             approvalRequestRepository.save(competing);
 
-            // Hủy toàn bộ Task chưa duyệt của các request cạnh tranh
             approvalTaskRepository.rejectAllPendingTasksByRequestId(competing.getId());
 
+            auditLogService.log(
+                    "APPROVAL_REQUEST",
+                    competing.getId(),
+                    "CANCELLED",
+                    "PENDING",
+                    "CANCELLED",
+                    "Yêu cầu bị huỷ do tài sản " + competing.getAsset().getAssetCode()
+                            + " đã được gán cho yêu cầu #" + winningRequestId,
+                    null
+            );
+
+            notificationService.notify(
+                    competing.getRequester(),
+                    "Yêu cầu đã bị huỷ",
+                    "Tài sản " + competing.getAsset().getAssetCode()
+                            + " bạn yêu cầu đã được cấp cho người khác trước, yêu cầu của bạn đã bị huỷ.",
+                    "APPROVAL_REQUEST",
+                    competing.getId()
+            );
         }
     }
 }

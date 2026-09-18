@@ -8,6 +8,9 @@ import com.assetmanagement.asset_management.enums.AssetStatus;
 import com.assetmanagement.asset_management.exception.InvalidStatusTransitionException;
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.*;
+import com.assetmanagement.asset_management.security.CustomUserDetails;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,24 +25,26 @@ public class AssetService {
     private final UserRepository userRepository;
     private final AssetHistoryRepository assetHistoryRepository;
     private final DepartmentRepository departmentRepository;
+    private final AuditLogService auditLogService;
 
     public AssetService(
             AssetRepository assetRepository,
             AssetCategoryRepository assetCategoryRepository,
             AssetHistoryRepository assetHistoryRepository,
             UserRepository userRepository,
-            DepartmentRepository departmentRepository) {
+            DepartmentRepository departmentRepository,
+            AuditLogService auditLogService) {
 
         this.assetRepository = assetRepository;
         this.assetCategoryRepository = assetCategoryRepository;
         this.assetHistoryRepository = assetHistoryRepository;
         this.userRepository = userRepository;
         this.departmentRepository = departmentRepository;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional(readOnly = true)
     public List<AssetResponse> getAllAssets() {
-
         return assetRepository.findAll()
                 .stream()
                 .map(this::toResponse)
@@ -48,28 +53,21 @@ public class AssetService {
 
     @Transactional(readOnly = true)
     public AssetResponse getAssetById(Long id) {
-
         Asset asset = assetRepository.findById(id)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Asset not found"));
-
+                .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
         return toResponse(asset);
     }
 
     public AssetResponse createAsset(AssetRequest request) {
-
         AssetCategory category = assetCategoryRepository
                 .findById(request.getCategoryId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Category not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
         Department department = departmentRepository
                 .findById(request.getDepartmentId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Department not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Department not found"));
 
         Asset asset = new Asset();
-
         asset.setAssetCode(request.getAssetCode());
         asset.setName(request.getName());
         asset.setSerialNumber(request.getSerialNumber());
@@ -80,25 +78,20 @@ public class AssetService {
         asset.setDepartment(department);
 
         Asset savedAsset = assetRepository.save(asset);
-
         return toResponse(savedAsset);
     }
 
     public AssetResponse updateAsset(Long id, AssetRequest request) {
-
         Asset asset = assetRepository.findById(id)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Asset not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
 
         AssetCategory category = assetCategoryRepository
                 .findById(request.getCategoryId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Category not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
         Department department = departmentRepository
                 .findById(request.getDepartmentId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Department not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Department not found"));
 
         asset.setAssetCode(request.getAssetCode());
         asset.setName(request.getName());
@@ -109,16 +102,12 @@ public class AssetService {
         asset.setDepartment(department);
 
         Asset updatedAsset = assetRepository.save(asset);
-
         return toResponse(updatedAsset);
     }
 
     public void deleteAsset(Long id) {
-
         Asset asset = assetRepository.findById(id)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Asset not found"));
-
+                .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
         assetRepository.delete(asset);
     }
 
@@ -127,16 +116,34 @@ public class AssetService {
             AssetStatus newStatus) {
 
         if (!isValidTransition(asset.getStatus(), newStatus)) {
-
             throw new InvalidStatusTransitionException(
-                    "Cannot change status from "
-                            + asset.getStatus()
-                            + " to "
-                            + newStatus
+                    "Cannot change status from " + asset.getStatus() + " to " + newStatus
             );
         }
 
+        AssetStatus oldStatus = asset.getStatus();
         asset.setStatus(newStatus);
+        auditLogService.log(
+                "ASSET",
+                asset.getId(),
+                "STATUS_CHANGED",
+                oldStatus.name(),
+                newStatus.name(),
+                "Tài sản " + asset.getAssetCode() + " chuyển trạng thái từ "
+                        + oldStatus + " sang " + newStatus,
+                getCurrentUserReference()
+        );
+    }
+
+    private User getCurrentUserReference() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null
+                || !(authentication.getPrincipal() instanceof CustomUserDetails userDetails)) {
+            return null;
+        }
+
+        return userRepository.getReferenceById(userDetails.getUser().getId());
     }
 
     private boolean isValidTransition(
@@ -166,12 +173,10 @@ public class AssetService {
             AssetAssignmentRequest request) {
 
         Asset asset = assetRepository.findById(assetId)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Asset not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
 
         User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         updateStatus(asset, AssetStatus.ASSIGNED);
 
@@ -182,86 +187,66 @@ public class AssetService {
                 .build();
 
         assetHistoryRepository.save(assetHistory);
-
         asset.setAssignedTo(user);
 
         Asset savedAsset = assetRepository.save(asset);
-
         return toResponse(savedAsset);
     }
 
     @Transactional
     public AssetResponse returnAsset(Long id) {
-
         Asset asset = assetRepository.findById(id)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Asset not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
 
         updateStatus(asset, AssetStatus.RETURNED);
-
         asset.setAssignedTo(null);
 
         AssetHistory assetHistory =
                 assetHistoryRepository
                         .findByAssetIdAndReturnedAtIsNull(id)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Active asset history not found"
-                                ));
+                        .orElseThrow(() -> new ResourceNotFoundException("Active asset history not found"));
 
         assetHistory.setReturnedAt(LocalDateTime.now());
-
         assetHistoryRepository.save(assetHistory);
 
         Asset savedAsset = assetRepository.save(asset);
-
         return toResponse(savedAsset);
     }
 
     @Transactional
     public AssetResponse maintenanceAsset(Long id) {
-
         Asset asset = assetRepository.findById(id)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Asset not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
 
         updateStatus(asset, AssetStatus.MAINTENANCE);
 
         Asset savedAsset = assetRepository.save(asset);
-
         return toResponse(savedAsset);
     }
 
     @Transactional
     public AssetResponse makeAvailable(Long id) {
-
         Asset asset = assetRepository.findById(id)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Asset not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
 
         updateStatus(asset, AssetStatus.AVAILABLE);
 
         Asset savedAsset = assetRepository.save(asset);
-
         return toResponse(savedAsset);
     }
 
     @Transactional
     public AssetResponse disposeAsset(Long id) {
-
         Asset asset = assetRepository.findById(id)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Asset not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
 
         updateStatus(asset, AssetStatus.DISPOSED);
 
         Asset savedAsset = assetRepository.save(asset);
-
         return toResponse(savedAsset);
     }
 
     private AssetResponse toResponse(Asset asset) {
-
         return AssetResponse.builder()
                 .id(asset.getId())
                 .assetCode(asset.getAssetCode())
@@ -270,23 +255,12 @@ public class AssetService {
                 .value(asset.getValue())
                 .purchaseDate(asset.getPurchaseDate())
                 .status(asset.getStatus())
-
                 .categoryId(asset.getCategory().getId())
                 .categoryName(asset.getCategory().getName())
-
                 .departmentId(asset.getDepartment().getId())
                 .departmentName(asset.getDepartment().getName())
-
-                .assignedToId(
-                        asset.getAssignedTo() != null
-                                ? asset.getAssignedTo().getId()
-                                : null
-                )
-                .assignedToName(
-                        asset.getAssignedTo() != null
-                                ? asset.getAssignedTo().getName()
-                                : null
-                )
+                .assignedToId(asset.getAssignedTo() != null ? asset.getAssignedTo().getId() : null)
+                .assignedToName(asset.getAssignedTo() != null ? asset.getAssignedTo().getName() : null)
                 .build();
     }
 }

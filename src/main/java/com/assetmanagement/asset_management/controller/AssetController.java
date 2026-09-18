@@ -57,7 +57,7 @@ public class AssetController {
     }
 
     @PostMapping("/{id}/assign")
-    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     public AssetResponse assignAsset(
             @PathVariable Long id,
             @Valid @RequestBody AssetAssignmentRequest request) {
@@ -84,7 +84,7 @@ public class AssetController {
     }
 
     @PostMapping("/{id}/dispose")
-    @PreAuthorize("hasRole('DIRECTOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     public AssetResponse disposeAsset(@PathVariable Long id) {
         return assetService.disposeAsset(id);
     }

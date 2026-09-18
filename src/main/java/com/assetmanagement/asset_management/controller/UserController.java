@@ -2,7 +2,6 @@ package com.assetmanagement.asset_management.controller;
 
 import com.assetmanagement.asset_management.dto.UserRequest;
 import com.assetmanagement.asset_management.dto.UserResponse;
-import com.assetmanagement.asset_management.entity.User;
 import com.assetmanagement.asset_management.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -62,8 +61,8 @@ public class UserController {
     }
 
     @PostMapping("/{userId}/roles/{roleId}")
-    @PreAuthorize("hasRole('DIRECTOR')")
-    public ResponseEntity<User> assignRole(
+    @PreAuthorize("hasAnyRole('DIRECTOR', 'ADMIN')")
+    public ResponseEntity<UserResponse> assignRole(
             @PathVariable Long userId,
             @PathVariable Long roleId) {
 
