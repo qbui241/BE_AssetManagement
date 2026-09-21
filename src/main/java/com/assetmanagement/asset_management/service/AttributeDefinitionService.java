@@ -103,10 +103,6 @@ public class AttributeDefinitionService {
     public void delete(Long id) {
         AttributeDefinition definition = attributeDefinitionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Attribute definition not found"));
-
-        // Xoá luôn mọi giá trị đã lưu của các asset tham chiếu tới định
-        // nghĩa này, tránh để lại dữ liệu mồ côi (orphan) trong
-        // asset_attribute_values.
         List<AssetAttributeValue> existingValues =
                 assetAttributeValueRepository.findByAttributeDefinitionId(id);
         assetAttributeValueRepository.deleteAll(existingValues);

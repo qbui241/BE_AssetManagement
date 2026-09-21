@@ -5,6 +5,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 @Builder
@@ -37,4 +38,6 @@ public class AssetResponse {
     private Long assignedToId;
 
     private String assignedToName;
+
+    private List<AssetAttributeValueResponse> attributes;
 }
