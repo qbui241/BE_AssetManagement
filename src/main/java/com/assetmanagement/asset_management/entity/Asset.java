@@ -1,6 +1,7 @@
 package com.assetmanagement.asset_management.entity;
 
 import com.assetmanagement.asset_management.enums.AssetStatus;
+import com.assetmanagement.asset_management.enums.AssetTrackingType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -42,6 +43,14 @@ public class Asset {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private AssetStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private AssetTrackingType trackingType;
+
+    private Integer quantity;
+
+    private Integer availableQuantity;
 
     @ManyToOne
     @JoinColumn(name = "category_id", nullable = false)

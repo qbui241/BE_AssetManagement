@@ -1,6 +1,8 @@
 package com.assetmanagement.asset_management.controller;
 
 import com.assetmanagement.asset_management.dto.AssetAssignmentRequest;
+import com.assetmanagement.asset_management.dto.AssetQuantityAssignmentRequest;
+import com.assetmanagement.asset_management.dto.AssetQuantityRequest;
 import com.assetmanagement.asset_management.dto.AssetRequest;
 import com.assetmanagement.asset_management.dto.AssetResponse;
 import com.assetmanagement.asset_management.entity.Asset;
@@ -87,5 +89,34 @@ public class AssetController {
     @PreAuthorize("hasRole('ADMIN')")
     public AssetResponse disposeAsset(@PathVariable Long id) {
         return assetService.disposeAsset(id);
+    }
+
+    // ========== Endpoint dành cho asset BULK (quản lý theo số lượng) ==========
+
+    @PostMapping("/{id}/assign-quantity")
+    @PreAuthorize("hasRole('ADMIN')")
+    public AssetResponse assignQuantity(
+            @PathVariable Long id,
+            @Valid @RequestBody AssetQuantityAssignmentRequest request) {
+
+        return assetService.assignQuantity(id, request.getUserId(), request.getQuantity());
+    }
+
+    @PostMapping("/{id}/return-quantity/{historyId}")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
+    public AssetResponse returnQuantity(
+            @PathVariable Long id,
+            @PathVariable Long historyId) {
+
+        return assetService.returnQuantity(id, historyId);
+    }
+
+    @PostMapping("/{id}/dispose-quantity")
+    @PreAuthorize("hasRole('ADMIN')")
+    public AssetResponse disposeQuantity(
+            @PathVariable Long id,
+            @Valid @RequestBody AssetQuantityRequest request) {
+
+        return assetService.disposeQuantity(id, request.getQuantity());
     }
 }

@@ -1,6 +1,7 @@
 package com.assetmanagement.asset_management.dto;
 
 import com.assetmanagement.asset_management.enums.AssetStatus;
+import com.assetmanagement.asset_management.enums.AssetTrackingType;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -20,6 +21,12 @@ public class AssetResponse {
     private String name;
 
     private String serialNumber;
+
+    private AssetTrackingType trackingType;
+
+    private Integer quantity;
+
+    private Integer availableQuantity;
 
     private BigDecimal value;
 

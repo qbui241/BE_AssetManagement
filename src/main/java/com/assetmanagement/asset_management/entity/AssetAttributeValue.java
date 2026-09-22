@@ -6,12 +6,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// Giá trị (Value) của 1 AttributeDefinition (Attribute) trên 1 Asset (Entity)
-// cụ thể -> đây là bảng "V" trong mô hình EAV.
-// value luôn lưu dạng String; ép kiểu theo attributeDefinition.dataType khi
-// đọc/validate ở tầng service, để không phải tạo nhiều cột value_string/
-// value_number/value_date riêng biệt (đánh đổi lấy sự đơn giản, chấp nhận
-// được ở quy mô đồ án).
 @Entity
 @Table(
         name = "asset_attribute_values",

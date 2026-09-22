@@ -28,6 +28,8 @@ public class ApprovalRequestResponse {
 
     private Integer currentStepOrder;
 
+    private Integer requestedQuantity;
+
     private ApprovalRequestStatus status;
 
     private LocalDateTime createdAt;

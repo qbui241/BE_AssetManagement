@@ -6,6 +6,7 @@ import com.assetmanagement.asset_management.entity.*;
 import com.assetmanagement.asset_management.enums.ActionType;
 import com.assetmanagement.asset_management.enums.ApprovalRequestStatus;
 import com.assetmanagement.asset_management.enums.AssetStatus;
+import com.assetmanagement.asset_management.enums.AssetTrackingType;
 import com.assetmanagement.asset_management.exception.AccessDeniedException;
 import com.assetmanagement.asset_management.exception.InvalidStatusTransitionException;
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
@@ -65,8 +66,9 @@ public class ApprovalRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("Asset not found"));
 
         ActionType actionType = requestDto.getActionType();
+        Integer requestedQuantity = resolveRequestedQuantity(asset, requestDto.getRequestedQuantity());
 
-        validateAssetStatusForAction(asset, actionType);
+        validateAssetStatusForAction(asset, actionType, requestedQuantity);
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
@@ -90,11 +92,26 @@ public class ApprovalRequestService {
                 .status(ApprovalRequestStatus.PENDING)
                 .createdAt(LocalDateTime.now())
                 .currentStepOrder(1)
+                .requestedQuantity(requestedQuantity)
                 .build();
 
         ApprovalRequest savedRequest = approvalRequestRepository.save(approvalRequest);
         workflowEngineService.createInitialTasks(savedRequest);
         return toResponse(savedRequest);
+    }
+
+    private Integer resolveRequestedQuantity(Asset asset, Integer requested) {
+        if (asset.getTrackingType() == AssetTrackingType.INDIVIDUAL) {
+            return null;
+        }
+
+        if (requested == null || requested <= 0) {
+            throw new IllegalStateException(
+                    "requestedQuantity must be a positive number for BULK tracked assets"
+            );
+        }
+
+        return requested;
     }
 
     private void validateSameBranch(User requester, Asset asset, boolean allowAdminBypass) {
@@ -106,8 +123,9 @@ public class ApprovalRequestService {
         Long assetBranchId = asset.getDepartment().getBranch().getId();
 
         if (!requesterBranchId.equals(assetBranchId)) {
-            throw new AccessDeniedException(
-                    "Cannot request an asset from a different branch"
+            throw new IllegalStateException(
+                    "Cannot request an asset from a different branch. " +
+                            "Cross-branch assignment is not allowed."
             );
         }
     }
@@ -119,19 +137,33 @@ public class ApprovalRequestService {
     private void validateDisposalRequest(Asset asset, User requester) {
         boolean isPrivilegedUser = hasRole(requester, ROLE_ADMIN) || hasRole(requester, ROLE_MANAGER);
         if (!isPrivilegedUser) {
-            throw new AccessDeniedException("User does not have the required role");
+            throw new AccessDeniedException("User does not have the required role.");
         }
 
         validateSameBranch(requester, asset, true);
     }
 
-    private void validateAssetStatusForAction(Asset asset, ActionType actionType) {
-        if (actionType == ActionType.ASSIGNMENT && asset.getStatus() != AssetStatus.AVAILABLE) {
-            throw new InvalidStatusTransitionException("Asset must be AVAILABLE for assignment");
+    private void validateAssetStatusForAction(
+            Asset asset,
+            ActionType actionType,
+            Integer requestedQuantity) {
+
+        if (asset.getTrackingType() == AssetTrackingType.INDIVIDUAL) {
+            if (actionType == ActionType.ASSIGNMENT && asset.getStatus() != AssetStatus.AVAILABLE) {
+                throw new InvalidStatusTransitionException("Asset must be AVAILABLE for assignment");
+            }
+
+            if (actionType == ActionType.DISPOSAL && asset.getStatus() != AssetStatus.RETURNED) {
+                throw new InvalidStatusTransitionException("Asset must be RETURNED for disposal");
+            }
+            return;
         }
 
-        if (actionType == ActionType.DISPOSAL && asset.getStatus() != AssetStatus.RETURNED) {
-            throw new InvalidStatusTransitionException("Asset must be RETURNED for disposal");
+        if (asset.getAvailableQuantity() == null || asset.getAvailableQuantity() < requestedQuantity) {
+            throw new InvalidStatusTransitionException(
+                    "Not enough available quantity: requested " + requestedQuantity
+                            + " but only " + asset.getAvailableQuantity() + " available"
+            );
         }
     }
 
@@ -146,6 +178,7 @@ public class ApprovalRequestService {
                 .requesterName(request.getRequester().getName())
                 .status(request.getStatus())
                 .currentStepOrder(request.getCurrentStepOrder())
+                .requestedQuantity(request.getRequestedQuantity())
                 .createdAt(request.getCreatedAt())
                 .completedAt(request.getCompletedAt())
                 .build();

@@ -12,4 +12,6 @@ public class ApprovalRequestRequest {
 
     @NotNull(message = "Action type is required")
     private ActionType actionType;
+
+    private Integer requestedQuantity;
 }

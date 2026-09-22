@@ -31,4 +31,6 @@ public class AssetHistory {
 
     private LocalDateTime returnedAt;
 
+    private Integer quantity;
+
 }

@@ -1,5 +1,6 @@
 package com.assetmanagement.asset_management.dto;
 
+import com.assetmanagement.asset_management.enums.AssetTrackingType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -20,8 +21,12 @@ public class AssetRequest {
     @NotBlank(message = "name is required")
     private String name;
 
-    @NotBlank(message = "serialNumber is required")
     private String serialNumber;
+
+    @NotNull(message = "trackingType is required")
+    private AssetTrackingType trackingType;
+
+    private Integer quantity;
 
     @NotNull(message = "Asset value is required")
     @Positive(message = "Asset value must be greater than 0")

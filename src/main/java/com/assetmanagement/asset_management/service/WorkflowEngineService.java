@@ -57,13 +57,26 @@ public class WorkflowEngineService {
                 ));
     }
 
-    public List<ApprovalStep> findApplicableSteps(Asset asset, ApprovalWorkflow workflow) {
+    public List<ApprovalStep> findApplicableSteps(ApprovalRequest approvalRequest, ApprovalWorkflow workflow) {
         List<ApprovalStep> steps = approvalStepRepository
                 .findByWorkflowIdOrderByStepOrderAsc(workflow.getId());
 
+        BigDecimal totalValue = resolveTotalValue(approvalRequest);
+
         return steps.stream()
-                .filter(step -> isStepApplicable(step, asset.getValue()))
+                .filter(step -> isStepApplicable(step, totalValue))
                 .toList();
+    }
+
+    private BigDecimal resolveTotalValue(ApprovalRequest approvalRequest) {
+        Asset asset = approvalRequest.getAsset();
+
+        if (asset.getTrackingType() == AssetTrackingType.BULK
+                && approvalRequest.getRequestedQuantity() != null) {
+            return asset.getValue().multiply(BigDecimal.valueOf(approvalRequest.getRequestedQuantity()));
+        }
+
+        return asset.getValue();
     }
 
     private boolean isStepApplicable(ApprovalStep step, BigDecimal assetValue) {
@@ -79,7 +92,7 @@ public class WorkflowEngineService {
     @Transactional
     public void createInitialTasks(ApprovalRequest approvalRequest) {
         ApprovalWorkflow workflow = approvalRequest.getWorkflow();
-        List<ApprovalStep> applicableSteps = findApplicableSteps(approvalRequest.getAsset(), workflow);
+        List<ApprovalStep> applicableSteps = findApplicableSteps(approvalRequest, workflow);
 
         if (applicableSteps.isEmpty()) {
             throw new IllegalStateException("No applicable approval step found");
@@ -230,10 +243,6 @@ public class WorkflowEngineService {
                 findEligibleApproversFor(task), approvalRequest
         );
 
-        // Nếu sau khi loại chính người yêu cầu ra, không còn ai đủ điều
-        // kiện duyệt task này (ví dụ phòng ban chỉ có đúng 1 MANAGER và
-        // đó chính là requester) -> tự động escalate lên cấp cao hơn
-        // thay vì để task treo PENDING vĩnh viễn mà không ai được báo.
         if (approvers.isEmpty()) {
             approvers = escalateTask(task, approvalRequest);
         }
@@ -251,13 +260,6 @@ public class WorkflowEngineService {
         }
     }
 
-    // Escalation: MANAGER hết người (trừ requester) -> chuyển task cho
-    // DIRECTOR của branch tương ứng. Nếu DIRECTOR cũng không có ai (hoặc
-    // step vốn đã ở cấp DIRECTOR trở lên và vẫn rỗng) -> chuyển tiếp cho
-    // ADMIN, vốn đã được thiết kế là cấp override cuối cùng của hệ thống.
-    // Việc escalate sẽ SỬA LUÔN role/department/branch của task, để người
-    // được escalate tới thực sự đủ điều kiện approve (validateApprover
-    // check theo đúng các field này), không chỉ đổi người nhận thông báo.
     private List<User> escalateTask(ApprovalTask task, ApprovalRequest approvalRequest) {
         String fromRole = task.getRole().getName();
 
@@ -337,7 +339,7 @@ public class WorkflowEngineService {
             ApprovalRequest approvalRequest,
             ApprovalWorkflow workflow) {
 
-        List<ApprovalStep> applicableSteps = findApplicableSteps(approvalRequest.getAsset(), workflow);
+        List<ApprovalStep> applicableSteps = findApplicableSteps(approvalRequest, workflow);
         Integer fromStepOrder = approvedTask.getStepOrder();
 
         while (true) {
@@ -428,17 +430,37 @@ public class WorkflowEngineService {
         ActionType actionType = approvalRequest.getWorkflow().getActionType();
 
         if (actionType == ActionType.ASSIGNMENT) {
-            if (asset.getStatus() != AssetStatus.AVAILABLE) {
-                approvalRequest.setStatus(ApprovalRequestStatus.CANCELLED);
-                approvalRequest.setCompletedAt(LocalDateTime.now());
-                approvalRequestRepository.save(approvalRequest);
-                throw new InvalidStatusTransitionException("Asset has already been assigned to another request");
-            }
+            if (asset.getTrackingType() == AssetTrackingType.INDIVIDUAL) {
+                if (asset.getStatus() != AssetStatus.AVAILABLE) {
+                    approvalRequest.setStatus(ApprovalRequestStatus.CANCELLED);
+                    approvalRequest.setCompletedAt(LocalDateTime.now());
+                    approvalRequestRepository.save(approvalRequest);
+                    throw new InvalidStatusTransitionException("Asset has already been assigned to another request");
+                }
 
-            assetService.assignAsset(
-                    asset.getId(),
-                    new AssetAssignmentRequest(approvalRequest.getRequester().getId())
-            );
+                assetService.assignAsset(
+                        asset.getId(),
+                        new AssetAssignmentRequest(approvalRequest.getRequester().getId())
+                );
+                cancelCompetingRequests(approvalRequest.getId(), asset.getId());
+            } else {
+                Integer requestedQuantity = approvalRequest.getRequestedQuantity();
+                if (asset.getAvailableQuantity() == null || asset.getAvailableQuantity() < requestedQuantity) {
+                    approvalRequest.setStatus(ApprovalRequestStatus.CANCELLED);
+                    approvalRequest.setCompletedAt(LocalDateTime.now());
+                    approvalRequestRepository.save(approvalRequest);
+                    throw new InvalidStatusTransitionException(
+                            "Not enough available quantity left: requested " + requestedQuantity
+                                    + " but only " + asset.getAvailableQuantity() + " available"
+                    );
+                }
+
+                assetService.assignQuantity(
+                        asset.getId(),
+                        approvalRequest.getRequester().getId(),
+                        requestedQuantity
+                );
+            }
 
             approvalRequest.setStatus(ApprovalRequestStatus.APPROVED);
             approvalRequest.setCompletedAt(LocalDateTime.now());
@@ -462,10 +484,24 @@ public class WorkflowEngineService {
                     approvalRequest.getId()
             );
 
-            cancelCompetingRequests(approvalRequest.getId(), asset.getId());
-
         } else if (actionType == ActionType.DISPOSAL) {
-            assetService.disposeAsset(asset.getId());
+            if (asset.getTrackingType() == AssetTrackingType.INDIVIDUAL) {
+                assetService.disposeAsset(asset.getId());
+            } else {
+                Integer requestedQuantity = approvalRequest.getRequestedQuantity();
+                if (asset.getAvailableQuantity() == null || asset.getAvailableQuantity() < requestedQuantity) {
+                    approvalRequest.setStatus(ApprovalRequestStatus.CANCELLED);
+                    approvalRequest.setCompletedAt(LocalDateTime.now());
+                    approvalRequestRepository.save(approvalRequest);
+                    throw new InvalidStatusTransitionException(
+                            "Not enough available quantity left to dispose: requested " + requestedQuantity
+                                    + " but only " + asset.getAvailableQuantity() + " available"
+                    );
+                }
+
+                assetService.disposeQuantity(asset.getId(), requestedQuantity);
+            }
+
             approvalRequest.setStatus(ApprovalRequestStatus.APPROVED);
             approvalRequest.setCompletedAt(LocalDateTime.now());
             approvalRequestRepository.save(approvalRequest);

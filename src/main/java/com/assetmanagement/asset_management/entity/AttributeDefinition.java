@@ -32,11 +32,9 @@ public class AttributeDefinition {
     @JoinColumn(name = "category_id", nullable = false)
     private AssetCategory category;
 
-    // Khoá kỹ thuật dùng để tham chiếu (vd "cpu"), không dấu, không khoảng trắng.
     @Column(nullable = false)
     private String name;
 
-    // Tên hiển thị cho người dùng (vd "CPU", "Biển số xe").
     @Column(nullable = false)
     private String label;
 
