@@ -4,10 +4,10 @@ services:
     container_name: asset_management_db
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: quan123
-      MARIADB_DATABASE: asset_management
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME}
     ports:
-      - "3307:3306"
+      - "${HOST_DB_PORT}:3306"
     volumes:
       - db_data:/var/lib/mysql
     healthcheck:
@@ -26,11 +26,11 @@ services:
       db:
         condition: service_healthy
     environment:
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_HOST: db
+      DB_PORT: 3306
       DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_USER: root
+      DB_PASSWORD: ${MARIADB_ROOT_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION}
       JPA_DDL_AUTO: ${JPA_DDL_AUTO}
