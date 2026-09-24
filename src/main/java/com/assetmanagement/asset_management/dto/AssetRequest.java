@@ -41,6 +41,8 @@ public class AssetRequest {
     @NotNull(message = "departmentId is required")
     private Long departmentId;
 
+    private String supplier;
+
     @Valid
     private List<AssetAttributeValueRequest> attributes = new ArrayList<>();
 }

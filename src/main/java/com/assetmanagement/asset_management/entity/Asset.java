@@ -52,6 +52,8 @@ public class Asset {
 
     private Integer availableQuantity;
 
+    private String supplier;
+
     @ManyToOne
     @JoinColumn(name = "category_id", nullable = false)
     private AssetCategory category;

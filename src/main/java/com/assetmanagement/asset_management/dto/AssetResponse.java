@@ -30,6 +30,8 @@ public class AssetResponse {
 
     private BigDecimal value;
 
+    private String supplier;
+
     private LocalDate purchaseDate;
 
     private AssetStatus status;

@@ -125,6 +125,7 @@ public class AssetService {
         asset.setCategory(category);
         asset.setDepartment(department);
         asset.setTrackingType(request.getTrackingType());
+        asset.setSupplier(request.getSupplier());
 
         if (request.getTrackingType() == AssetTrackingType.INDIVIDUAL) {
             asset.setSerialNumber(request.getSerialNumber());
@@ -180,6 +181,7 @@ public class AssetService {
         asset.setCategory(category);
         asset.setDepartment(department);
         asset.setTrackingType(request.getTrackingType());
+        asset.setSupplier(request.getSupplier());
 
         if (request.getTrackingType() == AssetTrackingType.INDIVIDUAL) {
             asset.setSerialNumber(request.getSerialNumber());
@@ -461,8 +463,6 @@ public class AssetService {
         int oldAvailable = asset.getAvailableQuantity();
         asset.setAvailableQuantity(oldAvailable - quantity);
 
-        // Chỉ dùng ASSIGNED như 1 cờ hiển thị "hết hàng tạm thời", không
-        // đi qua isValidTransition() của INDIVIDUAL vì bản chất khác hẳn.
         if (asset.getAvailableQuantity() == 0) {
             asset.setStatus(AssetStatus.ASSIGNED);
         }
@@ -647,7 +647,7 @@ public class AssetService {
                     // Không cần validate thêm.
                 }
             }
-        } catch ( DateTimeParseException | IllegalArgumentException e) {
+        } catch (DateTimeParseException | IllegalArgumentException e) {
             throw new IllegalStateException(
                     "Attribute '" + definition.getLabel() + "' expects a "
                             + definition.getDataType() + " value, got: '" + value + "'"
@@ -676,6 +676,7 @@ public class AssetService {
                 .quantity(asset.getQuantity())
                 .availableQuantity(asset.getAvailableQuantity())
                 .value(asset.getValue())
+                .supplier(asset.getSupplier())
                 .purchaseDate(asset.getPurchaseDate())
                 .status(asset.getStatus())
                 .categoryId(asset.getCategory().getId())
