@@ -51,6 +51,17 @@ public class ApprovalRequestService {
                 .toList();
     }
 
+    public List<ApprovalRequestResponse> getMyRequests() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+
+        return approvalRequestRepository
+                .findByRequesterIdOrderByCreatedAtDesc(userDetails.getUser().getId())
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     public ApprovalRequestResponse getRequestById(Long id) {
         ApprovalRequest request =
                 approvalRequestRepository.findById(id)

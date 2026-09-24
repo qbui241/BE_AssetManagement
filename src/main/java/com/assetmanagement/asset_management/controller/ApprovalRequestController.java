@@ -44,6 +44,12 @@ public class ApprovalRequestController {
         return approvalRequestService.getAllRequests();
     }
 
+    @GetMapping("/mine")
+    @PreAuthorize("isAuthenticated()")
+    public List<ApprovalRequestResponse> getMyRequests() {
+        return approvalRequestService.getMyRequests();
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize(
             "hasAnyRole('MANAGER', 'DIRECTOR') " +

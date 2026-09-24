@@ -2,9 +2,12 @@ package com.assetmanagement.asset_management.controller;
 
 import com.assetmanagement.asset_management.dto.UserRequest;
 import com.assetmanagement.asset_management.dto.UserResponse;
+import com.assetmanagement.asset_management.security.CustomUserDetails;
 import com.assetmanagement.asset_management.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,6 +22,13 @@ public class UserController {
 
     public UserController(UserService userService) {
         this.userService = userService;
+    }
+
+    @GetMapping("/me")
+    public UserResponse getMe() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        return userService.getUserById(userDetails.getUser().getId());
     }
 
     @GetMapping

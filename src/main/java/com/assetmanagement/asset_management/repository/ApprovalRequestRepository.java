@@ -18,4 +18,6 @@ public interface ApprovalRequestRepository extends JpaRepository<ApprovalRequest
     );
 
     boolean existsByAssetIdAndStatus(Long assetId, ApprovalRequestStatus status);
+
+    List<ApprovalRequest> findByRequesterIdOrderByCreatedAtDesc(Long requesterId);
 }
