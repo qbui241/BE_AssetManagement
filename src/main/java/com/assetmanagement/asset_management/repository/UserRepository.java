@@ -52,4 +52,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("departmentId") Long departmentId,
             @Param("branchId") Long branchId
     );
+
+    boolean existsByRoles_Id(Long roleId);
+    long countByRoles_Id(Long roleId);
 }
