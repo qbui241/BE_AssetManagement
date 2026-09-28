@@ -4,6 +4,9 @@ import com.assetmanagement.asset_management.dto.AuditLogResponse;
 import com.assetmanagement.asset_management.dto.PageResponse;
 import com.assetmanagement.asset_management.service.AuditLogService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -29,10 +32,9 @@ public class AuditLogController {
             @RequestParam(required = false) String entityType,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
 
-        return auditLogService.getLogs(action, entityType, from, to, page, size);
+        return auditLogService.getLogs(action, entityType, from, to, pageable);
     }
 
     @GetMapping("/entity")

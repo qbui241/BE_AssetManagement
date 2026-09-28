@@ -7,8 +7,7 @@ import com.assetmanagement.asset_management.entity.User;
 import com.assetmanagement.asset_management.repository.AuditLogRepository;
 import com.assetmanagement.asset_management.repository.AuditLogSpecifications;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -46,18 +45,14 @@ public class AuditLogService {
         auditLogRepository.save(log);
     }
 
-    // Moi: co phan trang + loc theo action/entityType/khoang ngay, tat ca
-    // tham so deu optional (truyen null neu khong loc).
     public PageResponse<AuditLogResponse> getLogs(
             String action,
             String entityType,
             LocalDateTime from,
             LocalDateTime to,
-            int page,
-            int size) {
+            Pageable pageable) {
 
         var spec = AuditLogSpecifications.withFilters(action, entityType, from, to);
-        var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Page<AuditLogResponse> result = auditLogRepository.findAll(spec, pageable)
                 .map(this::toResponse);
