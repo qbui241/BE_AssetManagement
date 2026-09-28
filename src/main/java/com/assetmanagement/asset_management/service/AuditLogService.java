@@ -1,9 +1,14 @@
 package com.assetmanagement.asset_management.service;
 
 import com.assetmanagement.asset_management.dto.AuditLogResponse;
+import com.assetmanagement.asset_management.dto.PageResponse;
 import com.assetmanagement.asset_management.entity.AuditLog;
 import com.assetmanagement.asset_management.entity.User;
 import com.assetmanagement.asset_management.repository.AuditLogRepository;
+import com.assetmanagement.asset_management.repository.AuditLogSpecifications;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -41,11 +46,23 @@ public class AuditLogService {
         auditLogRepository.save(log);
     }
 
-    public List<AuditLogResponse> getAllLogs() {
-        return auditLogRepository.findAllByOrderByCreatedAtDesc()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    // Moi: co phan trang + loc theo action/entityType/khoang ngay, tat ca
+    // tham so deu optional (truyen null neu khong loc).
+    public PageResponse<AuditLogResponse> getLogs(
+            String action,
+            String entityType,
+            LocalDateTime from,
+            LocalDateTime to,
+            int page,
+            int size) {
+
+        var spec = AuditLogSpecifications.withFilters(action, entityType, from, to);
+        var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        Page<AuditLogResponse> result = auditLogRepository.findAll(spec, pageable)
+                .map(this::toResponse);
+
+        return PageResponse.from(result);
     }
 
     public List<AuditLogResponse> getLogsForEntity(String entityType, Long entityId) {
