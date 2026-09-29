@@ -1,6 +1,8 @@
 package com.assetmanagement.asset_management.repository;
 
 import com.assetmanagement.asset_management.entity.Notification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -10,9 +12,9 @@ import java.util.List;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    List<Notification> findByRecipientIdOrderByCreatedAtDesc(Long recipientId);
+    Page<Notification> findByRecipientId(Long recipientId, Pageable pageable);
 
-    List<Notification> findByRecipientIdAndIsReadFalseOrderByCreatedAtDesc(Long recipientId);
+    Page<Notification> findByRecipientIdAndIsReadFalse(Long recipientId, Pageable pageable);
 
     long countByRecipientIdAndIsReadFalse(Long recipientId);
 

@@ -1,9 +1,13 @@
 package com.assetmanagement.asset_management.controller;
 
 import com.assetmanagement.asset_management.dto.NotificationResponse;
+import com.assetmanagement.asset_management.dto.PageResponse;
 import com.assetmanagement.asset_management.security.CustomUserDetails;
 import com.assetmanagement.asset_management.service.NotificationService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -23,10 +27,11 @@ public class NotificationController {
     }
 
     @GetMapping
-    public List<NotificationResponse> getMyNotifications(
-            @RequestParam(defaultValue = "false") boolean unreadOnly) {
+    public PageResponse<NotificationResponse> getMyNotifications(
+            @RequestParam(defaultValue = "false") boolean unreadOnly,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
 
-        return notificationService.getMyNotifications(getCurrentUserId(), unreadOnly);
+        return notificationService.getMyNotifications(getCurrentUserId(), unreadOnly, pageable);
     }
 
     @GetMapping("/unread-count")

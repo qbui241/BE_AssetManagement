@@ -1,8 +1,12 @@
 package com.assetmanagement.asset_management.controller;
 
 import com.assetmanagement.asset_management.dto.AssetHistoryResponse;
+import com.assetmanagement.asset_management.dto.PageResponse;
 import com.assetmanagement.asset_management.entity.AssetHistory;
 import com.assetmanagement.asset_management.service.AssetHistoryService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,11 +29,14 @@ public class AssetHistoryController {
 
     @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
     @GetMapping
-    public List<AssetHistoryResponse> getAssetHistories(
+    public PageResponse<AssetHistoryResponse> getAssetHistories(
             @RequestParam(required = false) Long assetId,
-            @RequestParam(required = false) Long userId) {
+            @RequestParam(required = false) Long userId,
+            @RequestParam(defaultValue = "false") boolean openOnly,
+            @RequestParam(required = false, name = "q") String keyword,
+            @PageableDefault(size = 20, sort = "assignedAt", direction = Sort.Direction.DESC) Pageable pageable) {
 
-        return assetHistoryService.getAssetHistories(assetId, userId);
+        return assetHistoryService.getAssetHistories(assetId, userId, openOnly, keyword, pageable);
     }
 }
 

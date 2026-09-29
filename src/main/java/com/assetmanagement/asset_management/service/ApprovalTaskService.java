@@ -1,8 +1,10 @@
 package com.assetmanagement.asset_management.service;
 
 import com.assetmanagement.asset_management.dto.ApprovalTaskResponse;
+import com.assetmanagement.asset_management.dto.PageResponse;
 import com.assetmanagement.asset_management.entity.ApprovalRequest;
 import com.assetmanagement.asset_management.entity.ApprovalTask;
+import com.assetmanagement.asset_management.entity.Role;
 import com.assetmanagement.asset_management.entity.User;
 import com.assetmanagement.asset_management.enums.ApprovalRequestStatus;
 import com.assetmanagement.asset_management.enums.WorkflowType;
@@ -11,6 +13,8 @@ import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.ApprovalTaskRepository;
 import com.assetmanagement.asset_management.repository.UserRepository;
 import com.assetmanagement.asset_management.security.CustomUserDetails;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -36,29 +40,66 @@ public class ApprovalTaskService {
         this.workflowEngineService = workflowEngineService;
     }
 
-    public List<ApprovalTaskResponse> getTasks(Long roleId, ApprovalRequestStatus status) {
-        List<ApprovalTask> tasks;
+    // Danh sách task toàn hệ thống, có phân trang. Chỉ ADMIN được gọi (xem ở
+    // controller) nên không cần thu hẹp theo phạm vi.
+    @Transactional(readOnly = true)
+    public PageResponse<ApprovalTaskResponse> getTasks(
+            Long roleId,
+            ApprovalRequestStatus status,
+            Pageable pageable) {
+
+        Page<ApprovalTask> tasks;
 
         if (roleId != null && status != null) {
-            tasks = approvalTaskRepository.findByRoleIdAndStatusOrderByStepOrderAsc(roleId, status);
+            tasks = approvalTaskRepository.findByRoleIdAndStatus(roleId, status, pageable);
         } else if (roleId != null) {
-            tasks = approvalTaskRepository.findByRoleIdOrderByStepOrderAsc(roleId);
+            tasks = approvalTaskRepository.findByRoleId(roleId, pageable);
         } else if (status != null) {
-            tasks = approvalTaskRepository.findByStatusOrderByStepOrderAsc(status);
+            tasks = approvalTaskRepository.findByStatus(status, pageable);
         } else {
-            tasks = approvalTaskRepository.findAll();
+            tasks = approvalTaskRepository.findAll(pageable);
         }
 
-        return tasks.stream()
-                .map(this::toResponse)
-                .toList();
+        return PageResponse.from(tasks.map(this::toResponse));
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<ApprovalTaskResponse> getMyPendingTasks(Pageable pageable) {
+        User approver = getCurrentAuthenticatedUser();
+
+        List<Long> roleIds = approver.getRoles().stream()
+                .map(Role::getId)
+                .toList();
+
+        // "IN ()" với danh sách rỗng không hợp lệ ở mọi dialect; người không có
+        // vai trò nào thì chắc chắn không có task nào để duyệt.
+        if (roleIds.isEmpty()) {
+            return PageResponse.from(Page.empty(pageable));
+        }
+
+        Page<ApprovalTask> tasks = approvalTaskRepository.findPendingForApprover(
+                ApprovalRequestStatus.PENDING,
+                WorkflowType.SEQUENTIAL,
+                approver.getId(),
+                roleIds,
+                approver.getDepartment().getId(),
+                approver.getDepartment().getBranch().getId(),
+                pageable
+        );
+
+        return PageResponse.from(tasks.map(task -> toResponse(task, true)));
+    }
+
+    // Các task của 1 yêu cầu, kèm cờ canDecide theo người đang xem để giao diện
+    // biết có nên hiện nút Duyệt/Từ chối hay không.
+    @Transactional(readOnly = true)
     public List<ApprovalTaskResponse> getTasksByRequestId(Long requestId) {
+        User viewer = getCurrentAuthenticatedUser();
+
         return approvalTaskRepository
                 .findByApprovalRequestIdOrderByStepOrderAsc(requestId)
                 .stream()
-                .map(this::toResponse)
+                .map(task -> toResponse(task, canDecide(task, viewer)))
                 .toList();
     }
 
@@ -162,7 +203,25 @@ public class ApprovalTaskService {
         }
     }
 
+    // Dùng lại đúng validateTask + validateApprover thay vì viết lại điều kiện,
+    // để nút "Duyệt" hiện ra khi và chỉ khi thao tác duyệt thực sự được chấp nhận.
+    private boolean canDecide(ApprovalTask task, User user) {
+        try {
+            validateTask(task);
+            validateApprover(task, user);
+            return true;
+        } catch (IllegalStateException | AccessDeniedException e) {
+            return false;
+        }
+    }
+
     private ApprovalTaskResponse toResponse(ApprovalTask task) {
+        return toResponse(task, null);
+    }
+
+    private ApprovalTaskResponse toResponse(ApprovalTask task, Boolean canDecide) {
+        ApprovalRequest request = task.getApprovalRequest();
+
         return ApprovalTaskResponse.builder()
                 .id(task.getId())
                 .approvalRequestId(task.getApprovalRequest().getId())
@@ -174,6 +233,11 @@ public class ApprovalTaskService {
                 .approvedById(task.getApprovedBy() != null ? task.getApprovedBy().getId() : null)
                 .approvedByName(task.getApprovedBy() != null ? task.getApprovedBy().getName() : null)
                 .note(task.getNote())
+                .assetCode(request.getAsset().getAssetCode())
+                .assetName(request.getAsset().getName())
+                .requesterName(request.getRequester().getName())
+                .requestCreatedAt(request.getCreatedAt())
+                .canDecide(canDecide)
                 .build();
     }
 }

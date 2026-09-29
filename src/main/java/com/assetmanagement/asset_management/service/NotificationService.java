@@ -1,11 +1,14 @@
 package com.assetmanagement.asset_management.service;
 
 import com.assetmanagement.asset_management.dto.NotificationResponse;
+import com.assetmanagement.asset_management.dto.PageResponse;
 import com.assetmanagement.asset_management.entity.Notification;
 import com.assetmanagement.asset_management.entity.User;
 import com.assetmanagement.asset_management.exception.AccessDeniedException;
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.NotificationRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,14 +44,17 @@ public class NotificationService {
         notificationRepository.save(notification);
     }
 
-    public List<NotificationResponse> getMyNotifications(Long userId, boolean unreadOnly) {
-        List<Notification> notifications = unreadOnly
-                ? notificationRepository.findByRecipientIdAndIsReadFalseOrderByCreatedAtDesc(userId)
-                : notificationRepository.findByRecipientIdOrderByCreatedAtDesc(userId);
+    @Transactional(readOnly = true)
+    public PageResponse<NotificationResponse> getMyNotifications(
+            Long userId,
+            boolean unreadOnly,
+            Pageable pageable) {
 
-        return notifications.stream()
-                .map(this::toResponse)
-                .toList();
+        Page<Notification> notifications = unreadOnly
+                ? notificationRepository.findByRecipientIdAndIsReadFalse(userId, pageable)
+                : notificationRepository.findByRecipientId(userId, pageable);
+
+        return PageResponse.from(notifications.map(this::toResponse));
     }
 
     public long countUnread(Long userId) {

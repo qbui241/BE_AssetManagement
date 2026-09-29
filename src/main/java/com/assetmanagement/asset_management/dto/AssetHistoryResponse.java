@@ -14,4 +14,5 @@ public class AssetHistoryResponse {
     private String userEmail;
     private LocalDateTime assignedAt;
     private LocalDateTime returnedAt;
+    private Integer quantity;
 }

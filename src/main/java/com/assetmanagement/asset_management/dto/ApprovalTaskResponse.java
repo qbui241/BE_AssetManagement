@@ -33,4 +33,18 @@ public class ApprovalTaskResponse {
     private String approvedByName;
 
     private String note;
+
+    private String assetCode;
+
+    private String assetName;
+
+    private String requesterName;
+
+    private LocalDateTime requestCreatedAt;
+
+    // Người đang gọi API có được phép duyệt/từ chối task này ngay lúc này hay không
+    // (đúng vai trò, đúng phạm vi phòng ban/chi nhánh, không phải người yêu cầu,
+    // đúng bước hiện tại). Chỉ được điền ở các API trả task theo người dùng hiện tại;
+    // null ở nơi khác.
+    private Boolean canDecide;
 }
