@@ -3,9 +3,14 @@ package com.assetmanagement.asset_management.controller;
 import com.assetmanagement.asset_management.dto.ApprovalRequestRequest;
 import com.assetmanagement.asset_management.dto.ApprovalRequestResponse;
 import com.assetmanagement.asset_management.dto.ApprovalTaskResponse;
+import com.assetmanagement.asset_management.dto.PageResponse;
+import com.assetmanagement.asset_management.enums.ApprovalRequestStatus;
 import com.assetmanagement.asset_management.service.ApprovalRequestService;
 import com.assetmanagement.asset_management.service.ApprovalTaskService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,14 +45,20 @@ public class ApprovalRequestController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
-    public List<ApprovalRequestResponse> getAllRequests() {
-        return approvalRequestService.getAllRequests();
+    public PageResponse<ApprovalRequestResponse> getAllRequests(
+            @RequestParam(required = false) ApprovalRequestStatus status,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        return approvalRequestService.getAllRequests(status, pageable);
     }
 
     @GetMapping("/mine")
     @PreAuthorize("isAuthenticated()")
-    public List<ApprovalRequestResponse> getMyRequests() {
-        return approvalRequestService.getMyRequests();
+    public PageResponse<ApprovalRequestResponse> getMyRequests(
+            @RequestParam(required = false) ApprovalRequestStatus status,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        return approvalRequestService.getMyRequests(status, pageable);
     }
 
     @GetMapping("/{id}")

@@ -2,6 +2,7 @@ package com.assetmanagement.asset_management.service;
 
 import com.assetmanagement.asset_management.dto.ApprovalRequestRequest;
 import com.assetmanagement.asset_management.dto.ApprovalRequestResponse;
+import com.assetmanagement.asset_management.dto.PageResponse;
 import com.assetmanagement.asset_management.entity.*;
 import com.assetmanagement.asset_management.enums.ActionType;
 import com.assetmanagement.asset_management.enums.ApprovalRequestStatus;
@@ -11,9 +12,11 @@ import com.assetmanagement.asset_management.exception.AccessDeniedException;
 import com.assetmanagement.asset_management.exception.InvalidStatusTransitionException;
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.ApprovalRequestRepository;
+import com.assetmanagement.asset_management.repository.ApprovalRequestSpecifications;
 import com.assetmanagement.asset_management.repository.AssetRepository;
 import com.assetmanagement.asset_management.repository.UserRepository;
 import com.assetmanagement.asset_management.security.CustomUserDetails;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -44,22 +47,44 @@ public class ApprovalRequestService {
         this.userRepository = userRepository;
     }
 
-    public List<ApprovalRequestResponse> getAllRequests() {
-        return approvalRequestRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    // Danh sách yêu cầu trong phạm vi quản lý: ADMIN xem toàn hệ thống, các role
+    // còn lại chỉ thấy yêu cầu có tài sản thuộc chi nhánh của mình (cùng nguyên
+    // tắc ABAC với AssetService.getAllAssets()).
+    @Transactional(readOnly = true)
+    public PageResponse<ApprovalRequestResponse> getAllRequests(
+            ApprovalRequestStatus status,
+            Pageable pageable) {
+
+        User currentUser = getCurrentUser();
+        Long branchScope = hasRole(currentUser, ROLE_ADMIN)
+                ? null
+                : currentUser.getDepartment().getBranch().getId();
+
+        var spec = ApprovalRequestSpecifications.withFilters(status, null, branchScope);
+
+        return PageResponse.from(
+                approvalRequestRepository.findAll(spec, pageable).map(this::toResponse)
+        );
     }
 
-    public List<ApprovalRequestResponse> getMyRequests() {
+    @Transactional(readOnly = true)
+    public PageResponse<ApprovalRequestResponse> getMyRequests(
+            ApprovalRequestStatus status,
+            Pageable pageable) {
+
+        User currentUser = getCurrentUser();
+        var spec = ApprovalRequestSpecifications.withFilters(status, currentUser.getId(), null);
+
+        return PageResponse.from(
+                approvalRequestRepository.findAll(spec, pageable).map(this::toResponse)
+        );
+    }
+
+    private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-
-        return approvalRequestRepository
-                .findByRequesterIdOrderByCreatedAtDesc(userDetails.getUser().getId())
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        return userRepository.findById(userDetails.getUser().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
     public ApprovalRequestResponse getRequestById(Long id) {
@@ -182,6 +207,7 @@ public class ApprovalRequestService {
         return ApprovalRequestResponse.builder()
                 .id(request.getId())
                 .assetId(request.getAsset().getId())
+                .assetCode(request.getAsset().getAssetCode())
                 .assetName(request.getAsset().getName())
                 .workflowId(request.getWorkflow().getId())
                 .workflowName(request.getWorkflow().getName())
