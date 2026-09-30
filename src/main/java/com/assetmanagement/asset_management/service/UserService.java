@@ -2,6 +2,7 @@ package com.assetmanagement.asset_management.service;
 
 import com.assetmanagement.asset_management.dto.UserRequest;
 import com.assetmanagement.asset_management.dto.UserResponse;
+import com.assetmanagement.asset_management.dto.PageResponse;
 import com.assetmanagement.asset_management.entity.Department;
 import com.assetmanagement.asset_management.entity.Role;
 import com.assetmanagement.asset_management.entity.User;
@@ -11,11 +12,14 @@ import com.assetmanagement.asset_management.repository.AssetHistoryRepository;
 import com.assetmanagement.asset_management.repository.DepartmentRepository;
 import com.assetmanagement.asset_management.repository.RoleRepository;
 import com.assetmanagement.asset_management.repository.UserRepository;
+import com.assetmanagement.asset_management.repository.UserSpecifications;
 import com.assetmanagement.asset_management.security.CustomUserDetails;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -44,17 +48,47 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public List<UserResponse> getAllUsers() {
-        return userRepository.findAllWithRoles()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    // Lưu ý: KHÔNG thu hẹp theo chi nhánh như Asset/AssetHistory/ApprovalRequest -
+    // giữ nguyên hành vi cũ (MANAGER/DIRECTOR xem được toàn bộ user) vì đây có
+    // vẻ là lựa chọn có chủ đích (quản lý tài khoản là việc liên chi nhánh), chỉ
+    // thêm phân trang + lọc, không đổi phạm vi hiển thị.
+    // Cùng nguyên tắc ABAC với Asset/AssetHistory/ApprovalRequest: ADMIN xem toàn
+    // hệ thống, MANAGER/DIRECTOR chỉ thấy user cùng chi nhánh. Khớp với
+    // validateSameBranch() vốn đã chặn assignRole liên chi
+    // nhánh - trước đây getAllUsers lại không lọc, không nhất quán.
+    @Transactional(readOnly = true)
+    public PageResponse<UserResponse> getAllUsers(
+            Long departmentId,
+            String roleName,
+            String keyword,
+            Pageable pageable) {
+
+        User currentUser = getCurrentUser();
+        Long branchScope = hasRole(currentUser, ROLE_ADMIN)
+                ? null
+                : currentUser.getDepartment().getBranch().getId();
+
+        var spec = UserSpecifications.withFilters(departmentId, roleName, keyword, branchScope);
+
+        return PageResponse.from(
+                userRepository.findAll(spec, pageable).map(this::toResponse)
+        );
+    }
+
+    private User getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        return userRepository.findById(userDetails.getUser().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
     public UserResponse getUserById(Long id) {
         User user = userRepository.findByIdWithRoles(id)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("User not found"));
+        // An toan cho ca truong hop tu xem chinh minh: branch cua minh luon
+        // trung branch cua minh nen validateSameBranch khong bao gio chan.
+        validateSameBranch(user);
         return toResponse(user);
     }
 
@@ -71,6 +105,8 @@ public class UserService {
                 request.getDepartmentId()
         ).orElseThrow(() ->
                 new ResourceNotFoundException("Department not found"));
+
+        validateSameBranch(department);
 
         User user = new User();
         user.setName(request.getName());
@@ -90,10 +126,18 @@ public class UserService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("User not found"));
 
+        // Kiem tra CA phong ban hien tai (nguon) LAN phong ban moi (dich), giong
+        // fix da lam cho AssetService.validateDepartmentAssignment - chan truong
+        // hop MANAGER "keo" mot user ngoai pham vi vao roi doi phong ban de hop
+        // thuc hoa, hoac chuyen mot user trong pham vi minh sang chi nhanh khac.
+        validateSameBranch(user);
+
         Department department = departmentRepository.findById(
                 request.getDepartmentId()
         ).orElseThrow(() ->
                 new ResourceNotFoundException("Department not found"));
+
+        validateSameBranch(department);
 
         user.setName(request.getName());
         user.setEmail(request.getEmail());
@@ -107,6 +151,8 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() ->
                         new ResourceNotFoundException("User not found"));
+
+        validateSameBranch(user);
 
         if (assetHistoryRepository.existsByUserId(id)) {
             throw new IllegalStateException(
@@ -126,7 +172,7 @@ public class UserService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Role not found"));
 
-        validateSameBranchForRoleAssignment(user);
+        validateSameBranch(user);
 
         user.getRoles().add(role);
 
@@ -134,26 +180,38 @@ public class UserService {
         return toResponse(savedUser);
     }
 
-    private void validateSameBranchForRoleAssignment(User targetUser) {
-        Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
-        CustomUserDetails userDetails =
-                (CustomUserDetails) authentication.getPrincipal();
-
-        User currentUser = userRepository.findById(userDetails.getUser().getId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("User not found"));
-
+    // Dung chung cho getUserById / createUser / updateUser / deleteUser /
+    // assignRole - moi noi dung deu can ap dung cung 1 quy tac ABAC theo branch.
+    private void validateSameBranch(User targetUser) {
+        User currentUser = getCurrentUser();
         if (hasRole(currentUser, ROLE_ADMIN)) {
             return;
         }
 
-        Long currentUserBranchId = currentUser.getDepartment().getBranch().getId();
-        Long targetUserBranchId = targetUser.getDepartment().getBranch().getId();
+        Long currentBranchId = currentUser.getDepartment().getBranch().getId();
+        Long targetBranchId = targetUser.getDepartment().getBranch().getId();
 
-        if (!currentUserBranchId.equals(targetUserBranchId)) {
+        if (!currentBranchId.equals(targetBranchId)) {
             throw new AccessDeniedException(
-                    "Cannot assign a role to a user from a different branch."
+                    "Cannot access or modify a user from a different branch."
+            );
+        }
+    }
+
+    // Ban cho truong hop dich la 1 Department (createUser/updateUser), khi
+    // chua co doi tuong User dich de dung overload ben tren.
+    private void validateSameBranch(Department targetDepartment) {
+        User currentUser = getCurrentUser();
+        if (hasRole(currentUser, ROLE_ADMIN)) {
+            return;
+        }
+
+        Long currentBranchId = currentUser.getDepartment().getBranch().getId();
+        Long targetBranchId = targetDepartment.getBranch().getId();
+
+        if (!currentBranchId.equals(targetBranchId)) {
+            throw new AccessDeniedException(
+                    "Cannot create or move a user into a different branch."
             );
         }
     }

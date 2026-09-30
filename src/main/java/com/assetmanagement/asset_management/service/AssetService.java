@@ -5,6 +5,7 @@ import com.assetmanagement.asset_management.dto.AssetAttributeValueRequest;
 import com.assetmanagement.asset_management.dto.AssetAttributeValueResponse;
 import com.assetmanagement.asset_management.dto.AssetRequest;
 import com.assetmanagement.asset_management.dto.AssetResponse;
+import com.assetmanagement.asset_management.dto.PageResponse;
 import com.assetmanagement.asset_management.entity.*;
 import com.assetmanagement.asset_management.enums.ApprovalRequestStatus;
 import com.assetmanagement.asset_management.enums.AssetStatus;
@@ -14,6 +15,7 @@ import com.assetmanagement.asset_management.exception.InvalidStatusTransitionExc
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.*;
 import com.assetmanagement.asset_management.security.CustomUserDetails;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -60,18 +62,23 @@ public class AssetService {
     }
 
     @Transactional(readOnly = true)
-    public List<AssetResponse> getAllAssets() {
+    public PageResponse<AssetResponse> getAllAssets(
+            AssetStatus status,
+            Long categoryId,
+            AssetTrackingType trackingType,
+            String keyword,
+            Pageable pageable) {
+
         User currentUser = getCurrentUser();
+        Long branchScope = hasRole(currentUser, "ADMIN")
+                ? null
+                : currentUser.getDepartment().getBranch().getId();
 
-        List<Asset> assets = hasRole(currentUser, "ADMIN")
-                ? assetRepository.findAll()
-                : assetRepository.findByDepartment_Branch_Id(
-                currentUser.getDepartment().getBranch().getId()
+        var spec = AssetSpecifications.withFilters(status, categoryId, trackingType, branchScope, keyword);
+
+        return PageResponse.from(
+                assetRepository.findAll(spec, pageable).map(this::toResponse)
         );
-
-        return assets.stream()
-                .map(this::toResponse)
-                .toList();
     }
 
     @Transactional(readOnly = true)

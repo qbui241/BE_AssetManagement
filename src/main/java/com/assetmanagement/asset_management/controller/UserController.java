@@ -2,8 +2,12 @@ package com.assetmanagement.asset_management.controller;
 
 import com.assetmanagement.asset_management.dto.UserRequest;
 import com.assetmanagement.asset_management.dto.UserResponse;
+import com.assetmanagement.asset_management.dto.PageResponse;
 import com.assetmanagement.asset_management.security.CustomUserDetails;
 import com.assetmanagement.asset_management.service.UserService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -32,9 +36,14 @@ public class UserController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
-    public List<UserResponse> getAllUsers() {
-        return userService.getAllUsers();
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN')")
+    public PageResponse<UserResponse> getAllUsers(
+            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) String roleName,
+            @RequestParam(required = false, name = "q") String keyword,
+            @PageableDefault(size = 20, sort = "id") Pageable pageable) {
+
+        return userService.getAllUsers(departmentId, roleName, keyword, pageable);
     }
 
     @GetMapping("/{id}")

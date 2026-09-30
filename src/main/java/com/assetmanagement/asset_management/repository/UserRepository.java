@@ -1,5 +1,7 @@
 package com.assetmanagement.asset_management.repository;
 
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
 import com.assetmanagement.asset_management.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -8,7 +10,8 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface UserRepository extends JpaRepository<User, Long> {
+public interface UserRepository
+        extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
 

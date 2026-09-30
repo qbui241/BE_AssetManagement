@@ -5,9 +5,15 @@ import com.assetmanagement.asset_management.dto.AssetQuantityAssignmentRequest;
 import com.assetmanagement.asset_management.dto.AssetQuantityRequest;
 import com.assetmanagement.asset_management.dto.AssetRequest;
 import com.assetmanagement.asset_management.dto.AssetResponse;
+import com.assetmanagement.asset_management.dto.PageResponse;
+import com.assetmanagement.asset_management.enums.AssetStatus;
+import com.assetmanagement.asset_management.enums.AssetTrackingType;
 import com.assetmanagement.asset_management.entity.Asset;
 import com.assetmanagement.asset_management.service.AssetService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,8 +32,14 @@ public class AssetController {
     }
 
     @GetMapping
-    public List<AssetResponse> getAllAssets() {
-        return assetService.getAllAssets();
+    public PageResponse<AssetResponse> getAllAssets(
+            @RequestParam(required = false) AssetStatus status,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) AssetTrackingType trackingType,
+            @RequestParam(required = false, name = "q") String keyword,
+            @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        return assetService.getAllAssets(status, categoryId, trackingType, keyword, pageable);
     }
 
     @GetMapping("/{id}")
