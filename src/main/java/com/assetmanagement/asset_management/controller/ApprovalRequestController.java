@@ -68,7 +68,6 @@ public class ApprovalRequestController {
     )
     public ApprovalRequestResponse getRequestById(
             @PathVariable Long id) {
-
         return approvalRequestService.getRequestById(id);
     }
 

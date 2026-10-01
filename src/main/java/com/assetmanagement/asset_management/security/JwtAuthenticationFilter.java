@@ -34,14 +34,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String authHeader = request.getHeader("Authorization");
+        String token;
 
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+        } else {
+            // EventSource (dung cho GET /api/notifications/stream) khong the tu
+            // set header tuy y, nen chi rieng truong hop nay chap nhan JWT qua
+            // query param "access_token" thay the. Moi request khac van bat
+            // buoc header Authorization nhu cu.
+            token = request.getParameter("access_token");
+        }
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (token == null) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        String token = authHeader.substring(7);
         String username = jwtService.extractUsername(token);
 
         if (username != null

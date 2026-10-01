@@ -4,13 +4,16 @@ import com.assetmanagement.asset_management.dto.NotificationResponse;
 import com.assetmanagement.asset_management.dto.PageResponse;
 import com.assetmanagement.asset_management.security.CustomUserDetails;
 import com.assetmanagement.asset_management.service.NotificationService;
+import com.assetmanagement.asset_management.service.SseEmitterRegistry;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
@@ -21,9 +24,24 @@ import java.util.Map;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final SseEmitterRegistry sseEmitterRegistry;
 
-    public NotificationController(NotificationService notificationService) {
+    public NotificationController(
+            NotificationService notificationService,
+            SseEmitterRegistry sseEmitterRegistry) {
         this.notificationService = notificationService;
+        this.sseEmitterRegistry = sseEmitterRegistry;
+    }
+
+    // FE mo ket noi nay bang EventSource va nhan su kien "notification" ngay
+    // khi co thong bao moi, thay vi phai cho vong poll tiep theo.
+    //
+    // EventSource khong the tu set header Authorization, nen o day chap nhan
+    // JWT truyen qua query param "access_token" (xem JwtAuthenticationFilter) -
+    // chi endpoint nay dung fallback do, moi API khac van bat buoc header.
+    @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter stream() {
+        return sseEmitterRegistry.register(getCurrentUserId());
     }
 
     @GetMapping

@@ -19,9 +19,13 @@ import java.util.List;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final SseEmitterRegistry sseEmitterRegistry;
 
-    public NotificationService(NotificationRepository notificationRepository) {
+    public NotificationService(
+            NotificationRepository notificationRepository,
+            SseEmitterRegistry sseEmitterRegistry) {
         this.notificationRepository = notificationRepository;
+        this.sseEmitterRegistry = sseEmitterRegistry;
     }
 
     public void notify(
@@ -41,7 +45,11 @@ public class NotificationService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        notificationRepository.save(notification);
+        Notification saved = notificationRepository.save(notification);
+
+        // Day ngay qua SSE neu nguoi nhan dang mo ket noi; khong co ket noi thi
+        // bo qua êm, thong bao van nam trong DB cho lan poll/tai trang sau.
+        sseEmitterRegistry.sendToUser(recipient.getId(), toResponse(saved));
     }
 
     @Transactional(readOnly = true)
