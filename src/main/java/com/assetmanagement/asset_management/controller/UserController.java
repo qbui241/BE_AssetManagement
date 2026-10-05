@@ -48,33 +48,34 @@ public class UserController {
 
     @GetMapping("/{id}")
     @PreAuthorize(
-            "hasAnyRole('MANAGER', 'DIRECTOR') " +
+            "hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN') " +
                     "or #id == authentication.principal.id"
     )
     public UserResponse getUserById(@PathVariable Long id) {
         return userService.getUserById(id);
     }
 
+    // MANAGER/DIRECTOR chi tao duoc user trong pham vi chi nhanh minh
+    // (validateSameBranch), ADMIN khong bi gioi han chi nhanh.
     @PostMapping
-    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN')")
     public UserResponse createUser(@RequestBody UserRequest user) {
         return userService.createUser(user);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize(
-            "hasAnyRole('MANAGER', 'DIRECTOR') " +
+            "hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN') " +
                     "or #id == authentication.principal.id"
     )
     public UserResponse updateUser(
             @PathVariable Long id,
             @RequestBody UserRequest user) {
-
         return userService.updateUser(id, user);
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN')")
     public void deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
     }

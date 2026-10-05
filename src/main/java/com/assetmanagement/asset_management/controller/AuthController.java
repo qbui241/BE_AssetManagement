@@ -1,8 +1,6 @@
 package com.assetmanagement.asset_management.controller;
 
 import com.assetmanagement.asset_management.dto.LoginRequest;
-import com.assetmanagement.asset_management.dto.UserRequest;
-import com.assetmanagement.asset_management.dto.UserResponse;
 import com.assetmanagement.asset_management.service.AuthService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,13 +15,6 @@ public class AuthController {
 
     public AuthController(AuthService authService) {
         this.authService = authService;
-    }
-
-    @PostMapping("/register")
-    public UserResponse register(
-            @RequestBody UserRequest request) {
-
-        return authService.register(request);
     }
 
     @PostMapping("/login")

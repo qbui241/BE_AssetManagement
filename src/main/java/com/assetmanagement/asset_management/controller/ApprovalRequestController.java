@@ -44,7 +44,7 @@ public class ApprovalRequestController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN')")
     public PageResponse<ApprovalRequestResponse> getAllRequests(
             @RequestParam(required = false) ApprovalRequestStatus status,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {

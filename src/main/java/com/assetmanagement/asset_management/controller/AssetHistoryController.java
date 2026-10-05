@@ -27,7 +27,7 @@ public class AssetHistoryController {
         this.assetHistoryService = assetHistoryService;
     }
 
-    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN')")
     @GetMapping
     public PageResponse<AssetHistoryResponse> getAssetHistories(
             @RequestParam(required = false) Long assetId,
@@ -39,4 +39,3 @@ public class AssetHistoryController {
         return assetHistoryService.getAssetHistories(assetId, userId, openOnly, keyword, pageable);
     }
 }
-

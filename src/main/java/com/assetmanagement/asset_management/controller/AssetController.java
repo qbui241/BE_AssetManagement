@@ -48,7 +48,7 @@ public class AssetController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR','ADMIN')")
     public AssetResponse createAsset(
             @Valid @RequestBody AssetRequest request) {
 
@@ -56,7 +56,7 @@ public class AssetController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN')")
     public AssetResponse updateAsset(
             @PathVariable Long id,
             @Valid @RequestBody AssetRequest request) {
@@ -65,7 +65,7 @@ public class AssetController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('DIRECTOR')")
+    @PreAuthorize("hasAnyRole('DIRECTOR', 'ADMIN')")
     public void deleteAsset(@PathVariable Long id) {
         assetService.deleteAsset(id);
     }

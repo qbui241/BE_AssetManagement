@@ -44,7 +44,7 @@ public class AssetCategoryController {
         return assetCategoryService.updateCategory(id, category);
     }
 
-    @PreAuthorize("hasRole('DIRECTOR')")
+    @PreAuthorize("hasAnyRole('DIRECTOR', 'ADMIN')")
     @DeleteMapping("/{id}")
     public void deleteCategory(@PathVariable Long id) {
         assetCategoryService.deleteCategory(id);
