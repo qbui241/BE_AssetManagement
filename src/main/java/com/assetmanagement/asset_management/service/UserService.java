@@ -48,14 +48,6 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    // Lưu ý: KHÔNG thu hẹp theo chi nhánh như Asset/AssetHistory/ApprovalRequest -
-    // giữ nguyên hành vi cũ (MANAGER/DIRECTOR xem được toàn bộ user) vì đây có
-    // vẻ là lựa chọn có chủ đích (quản lý tài khoản là việc liên chi nhánh), chỉ
-    // thêm phân trang + lọc, không đổi phạm vi hiển thị.
-    // Cùng nguyên tắc ABAC với Asset/AssetHistory/ApprovalRequest: ADMIN xem toàn
-    // hệ thống, MANAGER/DIRECTOR chỉ thấy user cùng chi nhánh. Khớp với
-    // validateSameBranch() vốn đã chặn assignRole liên chi
-    // nhánh - trước đây getAllUsers lại không lọc, không nhất quán.
     @Transactional(readOnly = true)
     public PageResponse<UserResponse> getAllUsers(
             Long departmentId,

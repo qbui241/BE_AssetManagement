@@ -296,7 +296,7 @@ public class WorkflowEngineService {
 
         Role role = roleRepository.findByName(roleName)
                 .orElseThrow(() -> new IllegalStateException(
-                        "Role " + roleName + " chưa được cấu hình trong hệ thống"
+                        "Role " + roleName + " is not configured in the system"
                 ));
 
         task.setRole(role);
