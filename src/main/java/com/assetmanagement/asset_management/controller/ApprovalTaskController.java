@@ -41,16 +41,20 @@ public class ApprovalTaskController {
         return approvalTaskService.getTasks(roleId, status, pageable);
     }
 
-    // "Chờ tôi duyệt": chỉ các task người gọi đang được phép xử lý.
+    // "Chờ tôi duyệt": chỉ các task người gọi đang được phép xử lý. ADMIN cần
+    // có mặt ở đây vì escalateTask() có thể đẩy task lên tận ADMIN khi chi
+    // nhánh không còn ai ở cấp DIRECTOR - findPendingForApprover() đã coi
+    // department/branch NULL của task (trường hợp escalate lên ADMIN) là
+    // "không giới hạn", nên không cần sửa gì ở tầng service.
     @GetMapping("/mine")
-    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN')")
     public PageResponse<ApprovalTaskResponse> getMyPendingTasks(
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable) {
 
         return approvalTaskService.getMyPendingTasks(pageable);
     }
 
-    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN')")
     @PostMapping("/{taskId}/approve")
     public ResponseEntity<ApprovalTaskResponse> approveTask(
             @PathVariable Long taskId
@@ -59,10 +63,9 @@ public class ApprovalTaskController {
     }
 
     @PostMapping("/{taskId}/reject")
-    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN')")
     public ResponseEntity<ApprovalTaskResponse> rejectTask(
             @PathVariable Long taskId) {
         return ResponseEntity.ok(approvalTaskService.rejectTask(taskId));
     }
 }
-

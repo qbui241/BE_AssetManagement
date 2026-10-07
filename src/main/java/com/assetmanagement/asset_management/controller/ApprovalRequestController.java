@@ -34,7 +34,7 @@ public class ApprovalRequestController {
 
     @GetMapping("/{requestId}/tasks")
     @PreAuthorize(
-            "hasAnyRole('MANAGER', 'DIRECTOR') " +
+            "hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN') " +
                     "or @approvalRequestSecurity.isRequester(#requestId, authentication)"
     )
     public List<ApprovalTaskResponse> getTasksByRequestId(
@@ -63,7 +63,7 @@ public class ApprovalRequestController {
 
     @GetMapping("/{id}")
     @PreAuthorize(
-            "hasAnyRole('MANAGER', 'DIRECTOR') " +
+            "hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN') " +
                     "or @approvalRequestSecurity.isRequester(#id, authentication)"
     )
     public ApprovalRequestResponse getRequestById(

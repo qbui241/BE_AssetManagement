@@ -1,7 +1,9 @@
 package com.assetmanagement.asset_management.controller;
 
-import com.assetmanagement.asset_management.entity.AssetCategory;
+import com.assetmanagement.asset_management.dto.AssetCategoryRequest;
+import com.assetmanagement.asset_management.dto.AssetCategoryResponse;
 import com.assetmanagement.asset_management.service.AssetCategoryService;
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,28 +22,28 @@ public class AssetCategoryController {
     }
 
     @GetMapping
-    public List<AssetCategory> getAllCategories() {
+    public List<AssetCategoryResponse> getAllCategories() {
         return assetCategoryService.getAllCategories();
     }
 
     @GetMapping("/{id}")
-    public AssetCategory getCategoryById(@PathVariable Long id) {
+    public AssetCategoryResponse getCategoryById(@PathVariable Long id) {
         return assetCategoryService.getCategoryById(id);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
-    public AssetCategory createCategory(@RequestBody AssetCategory category) {
-        return assetCategoryService.createCategory(category);
+    public AssetCategoryResponse createCategory(@Valid @RequestBody AssetCategoryRequest request) {
+        return assetCategoryService.createCategory(request);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
-    public AssetCategory updateCategory(
+    public AssetCategoryResponse updateCategory(
             @PathVariable Long id,
-            @RequestBody AssetCategory category) {
+            @Valid @RequestBody AssetCategoryRequest request) {
 
-        return assetCategoryService.updateCategory(id, category);
+        return assetCategoryService.updateCategory(id, request);
     }
 
     @PreAuthorize("hasAnyRole('DIRECTOR', 'ADMIN')")

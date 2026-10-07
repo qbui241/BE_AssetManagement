@@ -7,5 +7,4 @@ public enum DepartmentScope {
     REQUESTER_BRANCH,
     ASSET_BRANCH,
     SPECIFIC_BRANCH,
-    ANY                    // Không ràng buộc department (ví dụ: DIRECTOR)
 }

@@ -1,5 +1,7 @@
 package com.assetmanagement.asset_management.service;
 
+import com.assetmanagement.asset_management.dto.AssetCategoryRequest;
+import com.assetmanagement.asset_management.dto.AssetCategoryResponse;
 import com.assetmanagement.asset_management.entity.AssetCategory;
 import com.assetmanagement.asset_management.exception.ResourceNotFoundException;
 import com.assetmanagement.asset_management.repository.AssetCategoryRepository;
@@ -21,30 +23,40 @@ public class AssetCategoryService {
         this.assetRepository = assetRepository;
     }
 
-    public List<AssetCategory> getAllCategories() {
-        return assetCategoryRepository.findAll();
+    public List<AssetCategoryResponse> getAllCategories() {
+        return assetCategoryRepository.findAll()
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
-    public AssetCategory getCategoryById(Long id) {
-        return assetCategoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+    public AssetCategoryResponse getCategoryById(Long id) {
+        return toResponse(getCategoryEntity(id));
     }
 
-    public AssetCategory createCategory(AssetCategory category) {
-        return assetCategoryRepository.save(category);
+    public AssetCategoryResponse createCategory(AssetCategoryRequest request) {
+        // Entity duoc dung moi (khong truyen id tu client vao), nen khong co
+        // chuyen client tu chon id roi Spring Data JPA goi merge() de de len
+        // category co san - rui ro that su khi truoc day controller nhan
+        // thang @Entity AssetCategory (co setter id cong khai) lam @RequestBody.
+        AssetCategory category = new AssetCategory();
+        category.setName(request.getName());
+        category.setDescription(request.getDescription());
+
+        return toResponse(assetCategoryRepository.save(category));
     }
 
-    public AssetCategory updateCategory(Long id, AssetCategory category) {
-        AssetCategory existingCategory = getCategoryById(id);
+    public AssetCategoryResponse updateCategory(Long id, AssetCategoryRequest request) {
+        AssetCategory existingCategory = getCategoryEntity(id);
 
-        existingCategory.setName(category.getName());
-        existingCategory.setDescription(category.getDescription());
+        existingCategory.setName(request.getName());
+        existingCategory.setDescription(request.getDescription());
 
-        return assetCategoryRepository.save(existingCategory);
+        return toResponse(assetCategoryRepository.save(existingCategory));
     }
 
     public void deleteCategory(Long id) {
-        AssetCategory category = getCategoryById(id);
+        AssetCategory category = getCategoryEntity(id);
 
         if (assetRepository.existsByCategoryId(id)) {
             throw new IllegalStateException(
@@ -52,5 +64,18 @@ public class AssetCategoryService {
             );
         }
         assetCategoryRepository.delete(category);
+    }
+
+    private AssetCategory getCategoryEntity(Long id) {
+        return assetCategoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+    }
+
+    private AssetCategoryResponse toResponse(AssetCategory category) {
+        return new AssetCategoryResponse(
+                category.getId(),
+                category.getName(),
+                category.getDescription()
+        );
     }
 }

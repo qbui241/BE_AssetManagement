@@ -614,7 +614,7 @@ public class AssetService {
         for (AttributeDefinition definition : definitions) {
             String value = providedValues.get(definition.getId());
             if (definition.isRequired() && (value == null || value.isBlank())) {
-                missingRequired.add(definition.getLabel());
+                missingRequired.add(definition.getName());
             }
         }
 

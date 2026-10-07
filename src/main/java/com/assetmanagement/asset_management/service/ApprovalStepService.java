@@ -41,7 +41,7 @@ public class ApprovalStepService {
     }
 
     // departmentId chi co y nghia khi departmentScope = SPECIFIC_DEPARTMENT.
-    // Cac scope khac (REQUESTER_DEPARTMENT, ASSET_DEPARTMENT, *_BRANCH, ANY)
+    // Cac scope khac (REQUESTER_DEPARTMENT, ASSET_DEPARTMENT, *_BRANCH)
     // deu duoc resolve DONG luc tao task (xem WorkflowEngineService), khong
     // luu department tinh tren step.
     private Department resolveOptionalDepartment(Long departmentId) {

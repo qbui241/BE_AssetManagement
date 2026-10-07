@@ -29,15 +29,18 @@ public class ApprovalTaskService {
     private final ApprovalTaskRepository approvalTaskRepository;
     private final UserRepository userRepository;
     private final WorkflowEngineService workflowEngineService;
+    private final ApprovalRequestService approvalRequestService;
 
     public ApprovalTaskService(
             ApprovalTaskRepository approvalTaskRepository,
             UserRepository userRepository,
-            WorkflowEngineService workflowEngineService) {
+            WorkflowEngineService workflowEngineService,
+            ApprovalRequestService approvalRequestService) {
 
         this.approvalTaskRepository = approvalTaskRepository;
         this.userRepository = userRepository;
         this.workflowEngineService = workflowEngineService;
+        this.approvalRequestService = approvalRequestService;
     }
 
     // Danh sách task toàn hệ thống, có phân trang. Chỉ ADMIN được gọi (xem ở
@@ -95,6 +98,14 @@ public class ApprovalTaskService {
     @Transactional(readOnly = true)
     public List<ApprovalTaskResponse> getTasksByRequestId(Long requestId) {
         User viewer = getCurrentAuthenticatedUser();
+
+        // Trước đây hàm này query thẳng task theo requestId, không kiểm tra
+        // request có tồn tại hay có cùng chi nhánh với người gọi hay không -
+        // cùng lỗ hổng với ApprovalRequestService.getRequestById(). Gọi lại
+        // đúng 1 chỗ kiểm tra đó (ResourceNotFoundException nếu requestId
+        // sai, AccessDeniedException nếu khác chi nhánh và không phải
+        // requester/ADMIN) trước khi trả danh sách task.
+        approvalRequestService.getRequestEntityForView(requestId);
 
         return approvalTaskRepository
                 .findByApprovalRequestIdOrderByStepOrderAsc(requestId)
