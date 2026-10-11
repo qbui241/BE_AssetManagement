@@ -399,13 +399,12 @@ public class AssetService {
         updateStatus(asset, AssetStatus.RETURNED);
         asset.setAssignedTo(null);
 
-        AssetHistory assetHistory =
-                assetHistoryRepository
-                        .findByAssetIdAndReturnedAtIsNull(id)
-                        .orElseThrow(() -> new ResourceNotFoundException("Active asset history not found"));
-
-        assetHistory.setReturnedAt(LocalDateTime.now());
-        assetHistoryRepository.save(assetHistory);
+        assetHistoryRepository
+                .findByAssetIdAndReturnedAtIsNull(id)
+                .ifPresent(assetHistory -> {
+                    assetHistory.setReturnedAt(LocalDateTime.now());
+                    assetHistoryRepository.save(assetHistory);
+                });
 
         Asset savedAsset = assetRepository.save(asset);
         return toResponse(savedAsset);
@@ -614,7 +613,7 @@ public class AssetService {
         for (AttributeDefinition definition : definitions) {
             String value = providedValues.get(definition.getId());
             if (definition.isRequired() && (value == null || value.isBlank())) {
-                missingRequired.add(definition.getName());
+                missingRequired.add(definition.getLabel());
             }
         }
 
@@ -690,6 +689,8 @@ public class AssetService {
                 .categoryName(asset.getCategory().getName())
                 .departmentId(asset.getDepartment().getId())
                 .departmentName(asset.getDepartment().getName())
+                .branchId(asset.getDepartment().getBranch().getId())
+                .branchName(asset.getDepartment().getBranch().getName())
                 .assignedToId(asset.getAssignedTo() != null ? asset.getAssignedTo().getId() : null)
                 .assignedToName(asset.getAssignedTo() != null ? asset.getAssignedTo().getName() : null)
                 .attributes(asset.getAttributeValues().stream()

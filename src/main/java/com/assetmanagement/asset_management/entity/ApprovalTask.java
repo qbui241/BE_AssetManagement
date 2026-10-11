@@ -30,6 +30,8 @@ public class ApprovalTask {
     @Column(nullable = false)
     private Integer stepOrder;
 
+    private Integer displayOrder;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ApprovalRequestStatus status;

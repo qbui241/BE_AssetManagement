@@ -44,6 +44,10 @@ public class AssetResponse {
 
     private String departmentName;
 
+    private Long branchId;
+
+    private String branchName;
+
     private Long assignedToId;
 
     private String assignedToName;

@@ -30,6 +30,7 @@ public class ApprovalRequestService {
 
     private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_MANAGER = "MANAGER";
+    private static final String ROLE_DIRECTOR = "DIRECTOR";
 
     private final ApprovalRequestRepository approvalRequestRepository;
     private final AssetRepository assetRepository;
@@ -93,49 +94,7 @@ public class ApprovalRequestService {
                         .orElseThrow(() ->
                                 new ResourceNotFoundException("Approval request not found"));
 
-        validateCanViewRequest(request);
         return toResponse(request);
-    }
-
-    // Dùng chung cho ApprovalTaskService.getTasksByRequestId() - endpoint
-    // GET /{requestId}/tasks bị đúng lỗ hổng tương tự getRequestById() (chưa
-    // lọc branch), nên tái dùng lại fetch + validateCanViewRequest ở đây thay
-    // vì viết lại logic branch-check một lần nữa.
-    ApprovalRequest getRequestEntityForView(Long id) {
-        ApprovalRequest request =
-                approvalRequestRepository.findById(id)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException("Approval request not found"));
-
-        validateCanViewRequest(request);
-        return request;
-    }
-
-    // @PreAuthorize của endpoint chỉ kiểm tra role/isRequester, không kiểm tra
-    // branch - khác với getAllRequests() đã lọc branchScope qua Specification.
-    // Thiếu bước này thì xem theo ID sẽ "rò" dữ liệu của chi nhánh khác dù
-    // danh sách đã lọc đúng. Dùng lại đúng nguyên tắc: ADMIN không giới hạn,
-    // requester luôn xem được yêu cầu của chính mình, còn lại phải cùng chi
-    // nhánh với asset của yêu cầu.
-    void validateCanViewRequest(ApprovalRequest request) {
-        User currentUser = getCurrentUser();
-
-        if (hasRole(currentUser, ROLE_ADMIN)) {
-            return;
-        }
-
-        if (request.getRequester().getId().equals(currentUser.getId())) {
-            return;
-        }
-
-        Long currentBranchId = currentUser.getDepartment().getBranch().getId();
-        Long assetBranchId = request.getAsset().getDepartment().getBranch().getId();
-
-        if (!currentBranchId.equals(assetBranchId)) {
-            throw new AccessDeniedException(
-                    "Cannot view an approval request from a different branch."
-            );
-        }
     }
 
     @Transactional
@@ -170,6 +129,7 @@ public class ApprovalRequestService {
                 .status(ApprovalRequestStatus.PENDING)
                 .createdAt(LocalDateTime.now())
                 .currentStepOrder(1)
+                .currentDisplayStepOrder(1)
                 .requestedQuantity(requestedQuantity)
                 .build();
 
@@ -213,12 +173,33 @@ public class ApprovalRequestService {
     }
 
     private void validateDisposalRequest(Asset asset, User requester) {
-        boolean isPrivilegedUser = hasRole(requester, ROLE_ADMIN) || hasRole(requester, ROLE_MANAGER);
-        if (!isPrivilegedUser) {
-            throw new AccessDeniedException("User does not have the required role.");
+        if (hasRole(requester, ROLE_ADMIN)) {
+            return;
         }
 
-        validateSameBranch(requester, asset, true);
+        if (hasRole(requester, ROLE_DIRECTOR)) {
+            Long requesterBranchId = requester.getDepartment().getBranch().getId();
+            Long assetBranchId = asset.getDepartment().getBranch().getId();
+            if (!requesterBranchId.equals(assetBranchId)) {
+                throw new AccessDeniedException(
+                        "DIRECTOR can only request disposal within their own branch"
+                );
+            }
+            return;
+        }
+
+        if (hasRole(requester, ROLE_MANAGER)) {
+            Long requesterDeptId = requester.getDepartment().getId();
+            Long assetDeptId = asset.getDepartment().getId();
+            if (!requesterDeptId.equals(assetDeptId)) {
+                throw new AccessDeniedException(
+                        "MANAGER can only request disposal within their own department"
+                );
+            }
+            return;
+        }
+
+        throw new AccessDeniedException("User does not have the required role.");
     }
 
     private void validateAssetStatusForAction(
@@ -257,6 +238,10 @@ public class ApprovalRequestService {
                 .requesterName(request.getRequester().getName())
                 .status(request.getStatus())
                 .currentStepOrder(request.getCurrentStepOrder())
+                .currentDisplayStepOrder(
+                        request.getCurrentDisplayStepOrder() != null
+                                ? request.getCurrentDisplayStepOrder()
+                                : request.getCurrentStepOrder())
                 .requestedQuantity(request.getRequestedQuantity())
                 .createdAt(request.getCreatedAt())
                 .completedAt(request.getCompletedAt())

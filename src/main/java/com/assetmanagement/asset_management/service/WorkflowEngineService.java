@@ -11,7 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class WorkflowEngineService {
@@ -23,6 +25,7 @@ public class WorkflowEngineService {
     private final AssetRepository assetRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final DepartmentRepository departmentRepository;
     private final AssetService assetService;
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
@@ -35,6 +38,7 @@ public class WorkflowEngineService {
             AssetRepository assetRepository,
             UserRepository userRepository,
             RoleRepository roleRepository,
+            DepartmentRepository departmentRepository,
             AssetService assetService,
             AuditLogService auditLogService,
             NotificationService notificationService) {
@@ -45,6 +49,7 @@ public class WorkflowEngineService {
         this.assetRepository = assetRepository;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
+        this.departmentRepository = departmentRepository;
         this.assetService = assetService;
         this.auditLogService = auditLogService;
         this.notificationService = notificationService;
@@ -66,6 +71,13 @@ public class WorkflowEngineService {
         return steps.stream()
                 .filter(step -> isStepApplicable(step, totalValue))
                 .toList();
+    }
+
+    // So buoc hien thi cho nguoi dung (audit log, thong bao) - uu tien
+    // displayOrder da tinh san luc tao task; fallback ve stepOrder goc chi
+    // cho task TAO TRUOC khi them cot nay (du lieu cu, displayOrder=null).
+    private Integer displayOrderOf(ApprovalTask task) {
+        return task.getDisplayOrder() != null ? task.getDisplayOrder() : task.getStepOrder();
     }
 
     private BigDecimal resolveTotalValue(ApprovalRequest approvalRequest) {
@@ -108,6 +120,7 @@ public class WorkflowEngineService {
     private void createSequentialFirstTask(ApprovalRequest approvalRequest, List<ApprovalStep> applicableSteps) {
         ApprovalStep firstStep = applicableSteps.get(0);
         approvalRequest.setCurrentStepOrder(firstStep.getStepOrder());
+        approvalRequest.setCurrentDisplayStepOrder(1); // buoc dau tien khong bao gio bi auto-skip
 
         Department targetDept = resolveTargetDepartment(firstStep, approvalRequest);
         Branch targetBranch = resolveTargetBranch(firstStep, approvalRequest);
@@ -118,6 +131,7 @@ public class WorkflowEngineService {
                 .department(targetDept)
                 .branch(targetBranch)
                 .stepOrder(firstStep.getStepOrder())
+                .displayOrder(1) // task dau tien cua request, luon la buoc hien thi so 1
                 .status(ApprovalRequestStatus.PENDING)
                 .build();
 
@@ -126,9 +140,28 @@ public class WorkflowEngineService {
     }
 
     private void createParallelTasks(ApprovalRequest approvalRequest, List<ApprovalStep> applicableSteps) {
+        // Parallel khong co buoc nao bi auto-skip (khac Sequential), nhung
+        // stepOrder goc van co the "nhay so" neu 1 so buoc trong cau hinh bi
+        // loai vi khong applicable (vd nguong gia tri). Anh xa ve vi tri lien
+        // tuc 1..N theo cac stepOrder PHAN BIET thuc su co trong applicableSteps
+        // - cac buoc song song cung stepOrder se dung chung 1 displayOrder.
+        List<Integer> distinctOrders = applicableSteps.stream()
+                .map(ApprovalStep::getStepOrder)
+                .distinct()
+                .sorted()
+                .toList();
+
+        Set<Long> departmentsWithTask = new HashSet<>();
+
         for (ApprovalStep step : applicableSteps) {
             Department targetDept = resolveTargetDepartment(step, approvalRequest);
             Branch targetBranch = resolveTargetBranch(step, approvalRequest);
+
+            if (targetDept != null && !departmentsWithTask.add(targetDept.getId())) {
+                continue;
+            }
+
+            int displayOrder = distinctOrders.indexOf(step.getStepOrder()) + 1;
 
             ApprovalTask task = ApprovalTask.builder()
                     .approvalRequest(approvalRequest)
@@ -136,6 +169,7 @@ public class WorkflowEngineService {
                     .department(targetDept)
                     .branch(targetBranch)
                     .stepOrder(step.getStepOrder())
+                    .displayOrder(displayOrder)
                     .status(ApprovalRequestStatus.PENDING)
                     .build();
 
@@ -155,7 +189,11 @@ public class WorkflowEngineService {
                 currentTask.getStatus().name(),
                 "PENDING",
                 currentTask.getStatus().name(),
-                "Task step " + currentTask.getStepOrder() + " (" + currentTask.getRole().getName() + ") "
+                // Dung displayOrder (so buoc lien tuc nguoi dung thay) thay vi
+                // stepOrder goc (co the co khoang trong do buoc bi auto-skip),
+                // de nhat ky he thong khop voi UI thay vi la "Bước 3" khi
+                // nguoi duyet chi thuc su trai qua 2 buoc.
+                "Task step " + displayOrderOf(currentTask) + " (" + currentTask.getRole().getName() + ") "
                         + (currentTask.getStatus() == ApprovalRequestStatus.APPROVED ? "được duyệt" : "bị từ chối"),
                 currentTask.getApprovedBy()
         );
@@ -168,7 +206,7 @@ public class WorkflowEngineService {
                         "Yêu cầu bị từ chối",
                         "Yêu cầu #" + approvalRequest.getId() + " cho tài sản "
                                 + approvalRequest.getAsset().getAssetCode() + " đã bị từ chối ở bước "
-                                + currentTask.getStepOrder() + ".",
+                                + displayOrderOf(currentTask) + ".",
                         "APPROVAL_REQUEST",
                         approvalRequest.getId()
                 );
@@ -253,7 +291,7 @@ public class WorkflowEngineService {
                     "Có yêu cầu mới cần duyệt",
                     "Yêu cầu #" + approvalRequest.getId() + " cho tài sản "
                             + approvalRequest.getAsset().getAssetCode() + " đang chờ bạn duyệt (bước "
-                            + task.getStepOrder() + ").",
+                            + displayOrderOf(task) + ").",
                     "APPROVAL_TASK",
                     task.getId()
             );
@@ -367,12 +405,20 @@ public class WorkflowEngineService {
             Branch targetBranch = resolveTargetBranch(nextStep, approvalRequest);
 
             approvalRequest.setCurrentStepOrder(nextStep.getStepOrder());
+            // So task da ton tai (toan la task THUC SU duoc tao, buoc bi
+            // auto-skip khong tinh) + 1 = vi tri hien thi lien tuc cho task moi.
+            int displayOrder = (int) approvalTaskRepository.countByApprovalRequestId(approvalRequest.getId()) + 1;
+            // Dashboard/danh sach request doc truc tiep tu ApprovalRequest nen
+            // khong co danh sach task de tu tinh lai nhu RequestDetail - phai
+            // luu san gia tri hien thi nay ngay tren request, dong bo voi task.
+            approvalRequest.setCurrentDisplayStepOrder(displayOrder);
             ApprovalTask nextTask = ApprovalTask.builder()
                     .approvalRequest(approvalRequest)
                     .role(nextStep.getRole())
                     .department(targetDept)
                     .branch(targetBranch)
                     .stepOrder(nextStep.getStepOrder())
+                    .displayOrder(displayOrder)
                     .status(ApprovalRequestStatus.PENDING)
                     .build();
 
@@ -401,6 +447,20 @@ public class WorkflowEngineService {
             case REQUESTER_DEPARTMENT -> request.getRequester().getDepartment();
             case ASSET_DEPARTMENT -> request.getAsset().getDepartment();
             case SPECIFIC_DEPARTMENT -> step.getDepartment();
+            // Department "mau" cau hinh o step (step.getDepartment()) chi dung
+            // de lay TEN (vd "Kế toán") - department THUC SU duoc gan cho task
+            // la department cung ten do nhung nam trong CHI NHANH cua asset,
+            // tra ve dong (khong gan cung 1 department_id nhu SPECIFIC_DEPARTMENT).
+            case ASSET_BRANCH_DEPARTMENT -> {
+                Branch assetBranch = request.getAsset().getDepartment().getBranch();
+                String templateName = step.getDepartment().getName();
+                yield departmentRepository
+                        .findByNameAndBranchId(templateName, assetBranch.getId())
+                        .orElseThrow(() -> new IllegalStateException(
+                                "Can not find '" + templateName + "' department in branch '"
+                                        + assetBranch.getName() + "'"
+                        ));
+            }
             default -> null;
         };
     }

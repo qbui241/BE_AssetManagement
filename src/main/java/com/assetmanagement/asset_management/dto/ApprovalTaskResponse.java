@@ -24,6 +24,8 @@ public class ApprovalTaskResponse {
 
     private Integer stepOrder;
 
+    private Integer displayOrder;
+
     private ApprovalRequestStatus status;
 
     private LocalDateTime approvedAt;
@@ -42,9 +44,5 @@ public class ApprovalTaskResponse {
 
     private LocalDateTime requestCreatedAt;
 
-    // Người đang gọi API có được phép duyệt/từ chối task này ngay lúc này hay không
-    // (đúng vai trò, đúng phạm vi phòng ban/chi nhánh, không phải người yêu cầu,
-    // đúng bước hiện tại). Chỉ được điền ở các API trả task theo người dùng hiện tại;
-    // null ở nơi khác.
     private Boolean canDecide;
 }

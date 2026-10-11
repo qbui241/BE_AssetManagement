@@ -80,6 +80,8 @@ public interface ApprovalTaskRepository
             Long approvalRequestId
     );
 
+    long countByApprovalRequestId(Long approvalRequestId);
+
     @Modifying
     @Query("UPDATE ApprovalTask t SET t.status = 'REJECTED' " +
             "WHERE t.approvalRequest.id = :requestId AND t.status = 'PENDING'")

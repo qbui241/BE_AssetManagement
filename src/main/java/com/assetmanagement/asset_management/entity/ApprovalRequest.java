@@ -40,6 +40,8 @@ public class ApprovalRequest {
     @Column(nullable = false)
     private Integer currentStepOrder;
 
+    private Integer currentDisplayStepOrder;
+
     private Integer requestedQuantity;
 
     @Enumerated(EnumType.STRING)

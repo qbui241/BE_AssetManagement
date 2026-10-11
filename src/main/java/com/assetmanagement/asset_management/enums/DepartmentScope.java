@@ -7,4 +7,5 @@ public enum DepartmentScope {
     REQUESTER_BRANCH,
     ASSET_BRANCH,
     SPECIFIC_BRANCH,
+    ASSET_BRANCH_DEPARTMENT
 }

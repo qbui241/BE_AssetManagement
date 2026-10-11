@@ -184,15 +184,19 @@ public class DataSeeder implements CommandLineRunner {
                 .active(true)
                 .build());
 
-        // Parallel: MANAGER của IT và MANAGER của Kế toán (Hà Nội) cùng duyệt thanh lý.
+        // Parallel: MANAGER của phòng đang quản lý tài sản VÀ MANAGER của Kế
+        // toán cùng chi nhánh với tài sản cùng duyệt thanh lý - cả 2 đều
+        // resolve ĐỘNG theo tài sản thay vì gán cứng 1 department_id, để asset
+        // ở bất kỳ chi nhánh nào cũng ra đúng người duyệt của chi nhánh đó
+        // (trước đây gán cứng itHn/accHn nên asset chi nhánh khác bị tạo nhầm
+        // task cho Kế toán Hà Nội).
         approvalStepRepository.save(ApprovalStep.builder()
                 .workflow(disposalWf).role(manager).stepOrder(1)
-                .departmentScope(DepartmentScope.SPECIFIC_DEPARTMENT)
-                .department(itHn)
+                .departmentScope(DepartmentScope.ASSET_DEPARTMENT)
                 .build());
         approvalStepRepository.save(ApprovalStep.builder()
                 .workflow(disposalWf).role(manager).stepOrder(1)
-                .departmentScope(DepartmentScope.SPECIFIC_DEPARTMENT)
+                .departmentScope(DepartmentScope.ASSET_BRANCH_DEPARTMENT)
                 .department(accHn)
                 .build());
 
@@ -215,7 +219,7 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private User user(String username, String email, String name, String rawPassword,
-                       Department department, Set<Role> roles) {
+                      Department department, Set<Role> roles) {
         User u = new User();
         u.setUsername(username);
         u.setEmail(email);
@@ -234,7 +238,7 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private AttributeDefinition attr(AssetCategory category, String name, String label,
-                                      AttributeDataType dataType, boolean required) {
+                                     AttributeDataType dataType, boolean required) {
         AttributeDefinition a = new AttributeDefinition();
         a.setCategory(category);
         a.setName(name);
@@ -245,8 +249,8 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private Asset asset(String assetCode, String name, String serialNumber, BigDecimal value,
-                         AssetCategory category, Department department, AssetTrackingType trackingType,
-                         Integer quantity, Integer availableQuantity) {
+                        AssetCategory category, Department department, AssetTrackingType trackingType,
+                        Integer quantity, Integer availableQuantity) {
         Asset a = new Asset();
         a.setAssetCode(assetCode);
         a.setName(name);
