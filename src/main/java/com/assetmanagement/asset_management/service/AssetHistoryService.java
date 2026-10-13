@@ -50,6 +50,17 @@ public class AssetHistoryService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public java.util.List<AssetHistoryResponse> getMyOpenHistories() {
+        User currentUser = getCurrentUser();
+        var spec = AssetHistorySpecifications.withFilters(null, currentUser.getId(), true, null, null);
+        return assetHistoryRepository
+                .findAll(spec, org.springframework.data.domain.Sort.by("assignedAt").descending())
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
@@ -65,6 +76,10 @@ public class AssetHistoryService {
         AssetHistoryResponse response = new AssetHistoryResponse();
 
         response.setId(assetHistory.getId());
+        response.setAssetId(assetHistory.getAsset().getId());
+        response.setSerialNumber(assetHistory.getAsset().getSerialNumber());
+        response.setCategoryName(assetHistory.getAsset().getCategory().getName());
+        response.setDepartmentName(assetHistory.getAsset().getDepartment().getName());
         response.setAssetCode(assetHistory.getAsset().getAssetCode());
         response.setAssetName(assetHistory.getAsset().getName());
         response.setUserName(assetHistory.getUser().getName());

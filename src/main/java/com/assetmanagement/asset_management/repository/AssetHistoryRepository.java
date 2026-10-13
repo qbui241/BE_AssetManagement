@@ -11,5 +11,6 @@ public interface AssetHistoryRepository
         extends JpaRepository<AssetHistory, Long>, JpaSpecificationExecutor<AssetHistory> {
     List<AssetHistory> findByAssetId(Long assetId);
     Optional<AssetHistory> findByAssetIdAndReturnedAtIsNull(Long assetId);
+    List<AssetHistory> findByAssetIdInAndReturnedAtIsNull(java.util.Collection<Long> assetIds);
     boolean existsByUserId(Long userId);
 }

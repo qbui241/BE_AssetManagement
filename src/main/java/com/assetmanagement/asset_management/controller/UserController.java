@@ -1,6 +1,8 @@
 package com.assetmanagement.asset_management.controller;
 
 import com.assetmanagement.asset_management.dto.UserRequest;
+import com.assetmanagement.asset_management.dto.ChangePasswordRequest;
+import com.assetmanagement.asset_management.dto.ResetPasswordRequest;
 import com.assetmanagement.asset_management.dto.UserResponse;
 import com.assetmanagement.asset_management.dto.PageResponse;
 import com.assetmanagement.asset_management.security.CustomUserDetails;
@@ -78,6 +80,28 @@ public class UserController {
     @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN')")
     public void deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
+    }
+
+    // Tu doi mat khau cua chinh minh - bat ky ai dang nhap cung goi duoc,
+    // khong phan biet role/branch, vi day la hanh dong tren chinh tai khoan ho.
+    @PostMapping("/me/password")
+    @PreAuthorize("isAuthenticated()")
+    public void changeOwnPassword(@RequestBody ChangePasswordRequest request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        userService.changeOwnPassword(
+                userDetails.getUser().getId(),
+                request.getCurrentPassword(),
+                request.getNewPassword()
+        );
+    }
+
+    // ADMIN dat lai mat khau cho nguoi khac (quen mat khau) - khong can mat khau cu,
+    // khong gioi han theo chi nhanh/phong ban nhu cac thao tac User khac.
+    @PostMapping("/{id}/reset-password")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void resetPassword(@PathVariable Long id, @RequestBody ResetPasswordRequest request) {
+        userService.resetPassword(id, request.getNewPassword());
     }
 
     @PostMapping("/{userId}/roles/{roleId}")

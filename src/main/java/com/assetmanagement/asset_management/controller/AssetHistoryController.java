@@ -27,6 +27,12 @@ public class AssetHistoryController {
         this.assetHistoryService = assetHistoryService;
     }
 
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/mine")
+    public java.util.List<AssetHistoryResponse> getMyOpenHistories() {
+        return assetHistoryService.getMyOpenHistories();
+    }
+
     @PreAuthorize("hasAnyRole('MANAGER', 'DIRECTOR', 'ADMIN')")
     @GetMapping
     public PageResponse<AssetHistoryResponse> getAssetHistories(

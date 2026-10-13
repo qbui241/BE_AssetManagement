@@ -76,9 +76,33 @@ public class AssetService {
 
         var spec = AssetSpecifications.withFilters(status, categoryId, trackingType, branchScope, keyword);
 
-        return PageResponse.from(
-                assetRepository.findAll(spec, pageable).map(this::toResponse)
-        );
+        var page = assetRepository.findAll(spec, pageable).map(this::toResponse);
+        attachHolders(page.getContent(), currentUser);
+        return PageResponse.from(page);
+    }
+
+    // Gắn danh sách người đang giữ tài sản bằng đúng 1 truy vấn cho cả trang.
+    // Người dùng chưa có vai trò nào không được xem thông tin này.
+    private void attachHolders(java.util.List<AssetResponse> responses, User viewer) {
+        if (viewer.getRoles() == null || viewer.getRoles().isEmpty() || responses.isEmpty()) {
+            return;
+        }
+        var ids = responses.stream().map(AssetResponse::getId).toList();
+        var byAsset = assetHistoryRepository.findByAssetIdInAndReturnedAtIsNull(ids).stream()
+                .collect(java.util.stream.Collectors.groupingBy(h -> h.getAsset().getId()));
+
+        for (AssetResponse r : responses) {
+            r.setHolders(byAsset.getOrDefault(r.getId(), java.util.List.of()).stream()
+                    .sorted(java.util.Comparator.comparing(AssetHistory::getAssignedAt))
+                    .map(h -> new com.assetmanagement.asset_management.dto.AssetHolderResponse(
+                            h.getId(),
+                            h.getUser().getId(),
+                            h.getUser().getName(),
+                            h.getUser().getDepartment() != null ? h.getUser().getDepartment().getName() : null,
+                            h.getQuantity(),
+                            h.getAssignedAt()))
+                    .toList());
+        }
     }
 
     @Transactional(readOnly = true)
@@ -95,7 +119,9 @@ public class AssetService {
             }
         }
 
-        return toResponse(asset);
+        AssetResponse response = toResponse(asset);
+        attachHolders(java.util.List.of(response), currentUser);
+        return response;
     }
 
     private User getCurrentUser() {

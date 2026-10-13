@@ -147,6 +147,44 @@ public class UserService {
         return toResponse(savedUser);
     }
 
+    private static final int MIN_PASSWORD_LENGTH = 6;
+
+    // Tu doi mat khau cua chinh minh - bat buoc nhap dung mat khau hien tai.
+    // Khong gioi han branch/role: ai cung doi duoc mat khau cua chinh ho.
+    public void changeOwnPassword(Long userId, String currentPassword, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new IllegalStateException("Current password is incorrect.");
+        }
+        validateNewPassword(newPassword);
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
+    // ADMIN dat lai mat khau cho nguoi khac - khong can biet mat khau cu,
+    // khong gioi han theo chi nhanh (dung cho truong hop nhan vien quen mat khau
+    // o chi nhanh nao cung can ADMIN ho tro duoc).
+    public void resetPassword(Long targetUserId, String newPassword) {
+        User user = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        validateNewPassword(newPassword);
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
+    private void validateNewPassword(String newPassword) {
+        if (newPassword == null || newPassword.trim().length() < MIN_PASSWORD_LENGTH) {
+            throw new IllegalStateException(
+                    "The new password must be at least " + MIN_PASSWORD_LENGTH + " characters long."
+            );
+        }
+    }
+
     public void deleteUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() ->
@@ -236,6 +274,14 @@ public class UserService {
                 .branchId(
                         user.getDepartment() != null && user.getDepartment().getBranch() != null
                                 ? user.getDepartment().getBranch().getId()
+                                : null
+                )
+                .departmentName(
+                        user.getDepartment() != null ? user.getDepartment().getName() : null
+                )
+                .branchName(
+                        user.getDepartment() != null && user.getDepartment().getBranch() != null
+                                ? user.getDepartment().getBranch().getName()
                                 : null
                 )
                 .roles(

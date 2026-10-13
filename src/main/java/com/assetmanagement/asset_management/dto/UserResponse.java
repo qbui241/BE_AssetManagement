@@ -15,5 +15,7 @@ public class UserResponse {
     private String email;
     private Long departmentId;
     private Long branchId;
+    private String departmentName;
+    private String branchName;
     private List<String> roles;
 }

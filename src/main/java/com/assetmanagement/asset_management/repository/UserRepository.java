@@ -33,13 +33,6 @@ public interface UserRepository
     """)
     Optional<User> findByIdWithRoles(@Param("id") Long id);
 
-    @Query("""
-        SELECT DISTINCT u
-        FROM User u
-        LEFT JOIN FETCH u.roles
-    """)
-    List<User> findAllWithRoles();
-
     // MỚI: Tìm tất cả user có đúng Role + thuộc đúng phạm vi Department/Branch
     // của 1 ApprovalTask - đây là "nhóm người có quyền duyệt" task đó.
     @Query("""
@@ -56,6 +49,6 @@ public interface UserRepository
             @Param("branchId") Long branchId
     );
 
-    boolean existsByRoles_Id(Long roleId);
+
     long countByRoles_Id(Long roleId);
 }

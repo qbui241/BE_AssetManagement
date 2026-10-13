@@ -53,4 +53,6 @@ public class AssetResponse {
     private String assignedToName;
 
     private List<AssetAttributeValueResponse> attributes;
+
+    private List<AssetHolderResponse> holders;
 }

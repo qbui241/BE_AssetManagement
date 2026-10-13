@@ -8,6 +8,10 @@ import java.time.LocalDateTime;
 public class AssetHistoryResponse {
 
     private Long id;
+    private Long assetId;
+    private String serialNumber;
+    private String categoryName;
+    private String departmentName;
     private String assetName;
     private String assetCode;
     private String userName;
